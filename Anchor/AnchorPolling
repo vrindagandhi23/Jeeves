@@ -1,0 +1,48 @@
+#define TXD2 17
+#define RXD2 16
+#define RYUW_NRST 4
+
+HardwareSerial RYUW(2);
+
+void setup() {
+  Serial.begin(115200);
+  RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
+
+  pinMode(RYUW_NRST, OUTPUT);
+  digitalWrite(RYUW_NRST, HIGH);
+
+  Serial.println("Listening for RYUW responses...");
+}
+
+void loop() {
+  RYUW.println("AT+ANCHOR_SEND=9,1,A");
+  delay(1000);
+  if (RYUW.available()) {
+    String response = RYUW.readStringUntil('\n');
+    response.trim();
+
+    if (response.startsWith("+ANCHOR_RCV")) {
+      int lastComma = response.lastIndexOf(',');
+      if (lastComma != -1) {
+        String distanceStr = response.substring(lastComma + 1);
+        distanceStr.trim();  // "9 cm" → "9 cm"
+
+        // Remove " cm" if it exists
+        distanceStr.replace("cm", "");
+        distanceStr.trim();  // now "9"
+
+        // Convert to integer
+        int distance = distanceStr.toInt();
+
+        Serial.print("Distance (int): ");
+        Serial.println(distance);
+
+        // You can now use `distance` as an integer
+        // e.g. if (distance < 10) { do something; }
+      }
+    } else {
+      // Print other responses for debugging
+      // Serial.println(response);
+    }
+  }
+}
