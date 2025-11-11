@@ -24,72 +24,6 @@ bool triangulate(
   const std::vector<float>& distances,
   float& outX,
   float& outY
-);
-
-
-void setup() {
-  Serial.begin(115200);
-  RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
-
-  pinMode(RYUW_NRST, OUTPUT);
-  digitalWrite(RYUW_NRST, HIGH);
-
-  anchors = {
-  {0.0, 0.0},
-  {4.0, 0.0},
-  {4.0, 0.0}
-  };
-
-  distances.resize(3);
-
-  Serial.println("Listening for RYUW responses...");
-}
-
-void loop() {
-
-  for(int i = 0; i < 3; i++){
-    RYUW.println("AT+ANCHOR_SEND=Tag"+String(i+1)+",1,A");
-    delay(500);
-    if (RYUW.available()) {
-      String response = RYUW.readStringUntil('\n');
-      response.trim();
-
-      if (response.startsWith("+ANCHOR_RCV")) {
-        int lastComma = response.lastIndexOf(',');
-        if (lastComma != -1) {
-          String distanceStr = response.substring(lastComma + 1);
-          distanceStr.trim();  // "9 cm" → "9 cm"
-
-          // Remove " cm" if it exists
-          distanceStr.replace("cm", "");
-          distanceStr.trim();  // now "9"
-
-          // Convert to integer
-          int distance = distanceStr.toInt();
-          distances[i] = distance;
-          Serial.print("Distance (int): ");
-          Serial.println(distance);
-        }
-      } else {
-        // Print other responses for debugging
-        // Serial.println(response);
-      }
-    }
-  }
-  float x, y;
-  if (triangulate(anchors, distances, x, y)) {
-    Serial.println("Triangulated Position: x=" + String(x) + " y=" + String(y));
-  } else {
-    Serial.println("Triangulation failed (not enough data or singular matrix)");
-  }
-}
-
-// Performs 2D triangulation using least-squares (3+ anchors required)
-bool triangulate(
-  const std::vector<Anchor>& anchors,
-  const std::vector<int>& distances,
-  float& outX,
-  float& outY
 ) {
   if (anchors.size() < 3) return false; // need at least 3 anchors
 
@@ -149,3 +83,62 @@ bool triangulate(
 
   return true;
 }
+
+
+void setup() {
+  Serial.begin(115200);
+  RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
+
+  pinMode(RYUW_NRST, OUTPUT);
+  digitalWrite(RYUW_NRST, HIGH);
+
+  anchors = {
+  {0.0, 0.0},
+  {4.0, 0.0},
+  {4.0, 0.0}
+  };
+
+  distances.resize(3);
+
+  Serial.println("Listening for RYUW responses...");
+}
+
+void loop() {
+
+  for(int i = 0; i < 3; i++){
+    RYUW.println("AT+ANCHOR_SEND=Tag"+String(i+1)+",1,A");
+    delay(500);
+    if (RYUW.available()) {
+      String response = RYUW.readStringUntil('\n');
+      response.trim();
+
+      if (response.startsWith("+ANCHOR_RCV")) {
+        int lastComma = response.lastIndexOf(',');
+        if (lastComma != -1) {
+          String distanceStr = response.substring(lastComma + 1);
+          distanceStr.trim();  // "9 cm" → "9 cm"
+
+          // Remove " cm" if it exists
+          distanceStr.replace("cm", "");
+          distanceStr.trim();  // now "9"
+
+          // Convert to integer
+          int distance = distanceStr.toInt();
+          distances[i] = distance;
+          Serial.print("Distance (int): ");
+          Serial.println(distance);
+        }
+      } else {
+        // Print other responses for debugging
+        // Serial.println(response);
+      }
+    }
+  }
+  float x, y;
+  if (triangulate(anchors, distances, x, y)) {
+    Serial.println("Triangulated Position: x=" + String(x) + " y=" + String(y));
+  } else {
+    Serial.println("Triangulation failed (not enough data or singular matrix)");
+  }
+}
+
