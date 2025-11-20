@@ -19,73 +19,76 @@ int tags;
 
 std::vector<float> distances;
 
-// Performs 2D triangulation using least-squares (3+ anchors required)
+// Performs 2D triangulation using least squares
 bool triangulate(
-  const std::vector<Anchor>& anchors,
-  const std::vector<float>& distances,
-  float& outX,
-  float& outY
+    const std::vector<Anchor> &anchors,
+    const std::vector<float> &distances,
+    float &outX,
+    float &outY
 ) {
-  if (anchors.size() < 3) return false; // need at least 3 anchors
-  if (distances.size() < anchors.size()) return false;
+    int n = anchors.size();
+    if (n < 3) return false;
 
-  // Reference anchor
-  const Anchor& ref = anchors[0];
-  float x1 = ref.x;
-  float y1 = ref.y;
-  float d1 = distances[0];
+    if (distances.size() != n) return false;
 
-  // Build A and b
-  std::vector<std::array<float, 2>> A;
-  std::vector<float> b;
-  tags = 3;
+    // Reference anchor
+    float x1 = anchors[0].x;
+    float y1 = anchors[0].y;
+    float d1 = distances[0];
 
-  for (size_t i = 1; i < anchors.size(); i++) {
-    const Anchor& ai = anchors[i];
+    // Build A (n-1 × 2) and b (n-1)
+    std::vector<std::array<float, 2>> A;
+    std::vector<float> b;
+    A.reserve(n - 1);
+    b.reserve(n - 1);
 
-    float di = distances[i];
+    for (int i = 1; i < n; i++) {
+        float xi = anchors[i].x;
+        float yi = anchors[i].y;
+        float di = distances[i];
 
-    std::array<float, 2> rowA = { ai.x - x1, ai.y - y1 };
-    A.push_back(rowA);
+        A.push_back({ xi - x1, yi - y1 });
 
-    float bi = 0.5f * ((d1 * d1 - di * di) +
-                       (ai.x * ai.x - x1 * x1) +
-                       (ai.y * ai.y - y1 * y1));
-    b.push_back(bi);
-  }
+        float bi = 0.5f * (
+            (d1 * d1 - di * di) +
+            (xi * xi - x1 * x1) +
+            (yi * yi - y1 * y1)
+        );
 
-  int n = A.size();
-  if (n < 2) return false;
+        b.push_back(bi);
+    }
 
-  // Compute ATA = A^T * A, and ATb = A^T * b
-  float ATA[2][2] = {{0, 0}, {0, 0}};
-  float ATb[2] = {0, 0};
+    int m = n - 1; // number of rows
 
-  for (int i = 0; i < n; i++) {
-    ATA[0][0] += A[i][0] * A[i][0];
-    ATA[0][1] += A[i][0] * A[i][1];
-    ATA[1][0] += A[i][1] * A[i][0];
-    ATA[1][1] += A[i][1] * A[i][1];
+    // Compute ATA = AᵀA and ATb = Aᵀb
+    float ATA[2][2] = {{0,0},{0,0}};
+    float ATb[2] = {0, 0};
 
-    ATb[0] += A[i][0] * b[i];
-    ATb[1] += A[i][1] * b[i];
-  }
+    for (int i = 0; i < m; i++) {
+        ATA[0][0] += A[i][0] * A[i][0];
+        ATA[0][1] += A[i][0] * A[i][1];
+        ATA[1][0] += A[i][1] * A[i][0];
+        ATA[1][1] += A[i][1] * A[i][1];
 
-  // Invert 2x2 matrix (ATA)
-  float det = ATA[0][0] * ATA[1][1] - ATA[0][1] * ATA[1][0];
-  if (fabs(det) < 1e-6) return false;  // matrix is singular
+        ATb[0] += A[i][0] * b[i];
+        ATb[1] += A[i][1] * b[i];
+    }
 
-  float invATA[2][2];
-  invATA[0][0] =  ATA[1][1] / det;
-  invATA[0][1] = -ATA[0][1] / det;
-  invATA[1][0] = -ATA[1][0] / det;
-  invATA[1][1] =  ATA[0][0] / det;
+    // Invert 2×2 matrix
+    float det = ATA[0][0] * ATA[1][1] - ATA[0][1] * ATA[1][0];
+    if (fabs(det) < 1e-6) return false;
 
-  // Solve for position: pos = inv(ATA) * (ATb)
-  outX = invATA[0][0] * ATb[0] + invATA[0][1] * ATb[1];
-  outY = invATA[1][0] * ATb[0] + invATA[1][1] * ATb[1];
+    float invATA[2][2];
+    invATA[0][0] =  ATA[1][1] / det;
+    invATA[0][1] = -ATA[0][1] / det;
+    invATA[1][0] = -ATA[1][0] / det;
+    invATA[1][1] =  ATA[0][0] / det;
 
-  return true;
+    // Solve: position = inv(ATA) * (ATb)
+    outX = invATA[0][0] * ATb[0] + invATA[0][1] * ATb[1];
+    outY = invATA[1][0] * ATb[0] + invATA[1][1] * ATb[1];
+
+    return true;
 }
 
 
@@ -149,7 +152,7 @@ void loop() {
       Serial.println(i + 1);
     }
 
-    delay(100); // keep your original pacing between tags
+    delay(0); // keep your original pacing between tags
   }
 
   float x, y;
