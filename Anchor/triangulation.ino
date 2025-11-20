@@ -99,7 +99,7 @@ void setup() {
   anchors = {
     {137.0,   0.0},
     {0.0, 0.0},
-    {0.0, 58.0}
+    {0.0, 127.0}
   };
 
   distances.resize(3);
@@ -149,7 +149,7 @@ void loop() {
       Serial.println(i + 1);
     }
 
-    delay(800); // keep your original pacing between tags
+    delay(100); // keep your original pacing between tags
   }
 
   float x, y;
