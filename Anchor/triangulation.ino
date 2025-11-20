@@ -5,7 +5,8 @@
 HardwareSerial RYUW(2);
 
 #include <vector>
-#include <map>
+#include <array>
+#include <math.h>
 
 struct Anchor {
   float x;
@@ -26,12 +27,13 @@ bool triangulate(
   float& outY
 ) {
   if (anchors.size() < 3) return false; // need at least 3 anchors
+  if (distances.size() < anchors.size()) return false;
 
   // Reference anchor
   const Anchor& ref = anchors[0];
-  int x1 = ref.x, y1 = ref.y;
-  if (distances.size()<1) return false;
-  int d1 = distances[0];
+  float x1 = ref.x;
+  float y1 = ref.y;
+  float d1 = distances[0];
 
   // Build A and b
   std::vector<std::array<float, 2>> A;
@@ -43,10 +45,12 @@ bool triangulate(
 
     float di = distances[i];
 
-    float rowA[2] = { ai.x - x1, ai.y - y1 };
-    A.push_back({ rowA[0], rowA[1] });
+    std::array<float, 2> rowA = { ai.x - x1, ai.y - y1 };
+    A.push_back(rowA);
 
-    float bi = 0.5f * ((d1 * d1 - di * di) + (ai.x * ai.x - x1 * x1) + (ai.y * ai.y - y1 * y1));
+    float bi = 0.5f * ((d1 * d1 - di * di) +
+                       (ai.x * ai.x - x1 * x1) +
+                       (ai.y * ai.y - y1 * y1));
     b.push_back(bi);
   }
 
@@ -93,9 +97,9 @@ void setup() {
   digitalWrite(RYUW_NRST, HIGH);
 
   anchors = {
-  {0.0, 0.0},
-  {4.0, 0.0},
-  {4.0, 0.0}
+    {137.0,   0.0},
+    {0.0, 0.0},
+    {0.0, 58.0}
   };
 
   distances.resize(3);
@@ -105,40 +109,53 @@ void setup() {
 
 void loop() {
 
-  for(int i = 0; i < 3; i++){
-    RYUW.println("AT+ANCHOR_SEND=Tag"+String(i+1)+",1,A");
-    delay(500);
-    if (RYUW.available()) {
-      String response = RYUW.readStringUntil('\n');
-      response.trim();
+  for (int i = 0; i < 3; i++) {
 
-      if (response.startsWith("+ANCHOR_RCV")) {
-        int lastComma = response.lastIndexOf(',');
-        if (lastComma != -1) {
-          String distanceStr = response.substring(lastComma + 1);
-          distanceStr.trim();  // "9 cm" → "9 cm"
+    // Send command to current TAG
+    RYUW.println("AT+ANCHOR_SEND=TAG" + String(i + 1) + ",1,A");
 
-          // Remove " cm" if it exists
-          distanceStr.replace("cm", "");
-          distanceStr.trim();  // now "9"
+    // Wait up to 500 ms for a response for this tag
+    bool gotDistance = false;
+    unsigned long start = millis();
+    while (millis() - start < 500) {
+      if (RYUW.available()) {
+        String response = RYUW.readStringUntil('\n');
+        response.trim();
 
-          // Convert to integer
-          int distance = distanceStr.toInt();
-          distances[i] = distance;
-          Serial.print("Distance (int): ");
-          Serial.println(distance);
+        if (response.startsWith("+ANCHOR_RCV")) {
+          int lastComma = response.lastIndexOf(',');
+          if (lastComma != -1) {
+            String distanceStr = response.substring(lastComma + 1);
+            distanceStr.trim();  // "9 cm" → "9 cm"
+
+            // Remove " cm" if it exists
+            distanceStr.replace("cm", "");
+            distanceStr.trim();  // now "9"
+
+            // Convert to integer
+            int distance = distanceStr.toInt();
+            distances[i] = distance;
+            Serial.print("Distance (int): ");
+            Serial.println(distance);
+            gotDistance = true;
+            break;  // stop waiting for this tag
+          }
         }
-      } else {
-        // Print other responses for debugging
-        // Serial.println(response);
       }
     }
+
+    if (!gotDistance) {
+      Serial.print("Distance Failed: ");
+      Serial.println(i + 1);
+    }
+
+    delay(800); // keep your original pacing between tags
   }
+
   float x, y;
   if (triangulate(anchors, distances, x, y)) {
-    Serial.println("Triangulated Position: x=" + String(x) + " y=" + String(y));
+    Serial.println(String(x) + "," + String(y));
   } else {
     Serial.println("Triangulation failed (not enough data or singular matrix)");
   }
 }
-
