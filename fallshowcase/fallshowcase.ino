@@ -7,12 +7,16 @@
 #define IN2 26
 #define IN3 25
 #define IN4 33
-#define ENB 12
+#define ENB 12     // you were still using ENB, so we must define it
 #define STBY 32
 
 // --------------------- Servo Pin Mapping -------------------------------------
-Servo myservo;
-int servoPin = 18;
+Servo myservo;    // servo #1
+Servo myservo2;   // servo #2
+
+int servoPin  = 18;
+int servoPin2 = 19;
+
 int pos = 90;
 
 // --------------------- Motor Functions ---------------------------------------
@@ -60,44 +64,46 @@ void stopMotors() {
 // --------------------- Demo Helpers ------------------------------------------
 void demoMotors() {
   Serial.println("FORWARD");
-  forward(200);
+  forward(100);
   delay(1000);
   stopMotors();
   delay(300);
 
   Serial.println("BACKWARD");
-  backward(200);
+  backward(100);
   delay(1000);
   stopMotors();
   delay(300);
 
   Serial.println("RIGHT TURN");
-  rightTurn(200);
+  rightTurn(100);
   delay(1000);
   stopMotors();
   delay(300);
 
   Serial.println("LEFT TURN");
-  leftTurn(200);
+  leftTurn(100);
   delay(1000);
   stopMotors();
   delay(300);
 }
 
 void demoServo() {
-  // ensure starting at 180 every cycle
   myservo.write(90);
+  myservo2.write(90);
   delay(300);
 
-  Serial.println("Servo: 90 -> 0");
-  for (pos = 90; pos >= 0; pos--) {
+  Serial.println("Servo sweep: 90 → 0");
+  for (pos = 80; pos >= 0; pos--) {
     myservo.write(pos);
+    myservo2.write(180 - pos);   // second servo mirrors motion
     delay(15);
   }
 
-  Serial.println("Servo: 0 -> 90");
-  for (pos = 0; pos <= 90; pos++) {
+  Serial.println("Servo sweep: 0 → 90");
+  for (pos = 0; pos <= 80; pos++) {
     myservo.write(pos);
+    myservo2.write(180 - pos);
     delay(15);
   }
 
@@ -125,16 +131,19 @@ void setup() {
   ESP32PWM::allocateTimer(3);
 
   myservo.setPeriodHertz(50);
-  myservo.attach(servoPin, 500, 2400);
+  myservo2.setPeriodHertz(50);
 
-  // Start servo at 180
+  myservo.attach(servoPin, 500, 2400);
+  myservo2.attach(servoPin2, 500, 2400);
+
   myservo.write(90);
+  myservo2.write(90);
   delay(500);
 
-  Serial.println("Combined motor + servo demo running (ESP32 core 3.x compatible).");
+  Serial.println("Combined motor + dual-servo demo running (ESP32 core 3.x compatible).");
 }
 
-// --------------------- Main Loop --------------------------------------------
+// --------------------- Main Loop ---------------------------------------------
 void loop() {
   demoMotors();
   demoServo();
