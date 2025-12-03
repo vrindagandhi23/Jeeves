@@ -19,9 +19,20 @@ anchors = {
     "TAG1": (137.0, 0.0),
     "TAG2": (0.0, 0.0),
     "TAG3": (0.0, 127.0),
+    "TAG4": (137.0, 127.0)
 }
 
 tag_pos = None
+
+# Precompute axis limits so the plot doesn't keep rescaling
+anchor_xs = [p[0] for p in anchors.values()]
+anchor_ys = [p[1] for p in anchors.values()]
+margin = 20  # cm padding around anchors
+
+X_MIN = min(anchor_xs) - margin
+X_MAX = max(anchor_xs) + margin
+Y_MIN = min(anchor_ys) - margin
+Y_MAX = max(anchor_ys) + margin
 
 # ------------------------
 # Setup matplotlib
@@ -32,27 +43,29 @@ fig, ax = plt.subplots()
 def update_plot():
     ax.clear()
 
-    # Plot anchors
-    if anchors:
-        xs = [anchors[k][0] for k in anchors]
-        ys = [anchors[k][1] for k in anchors]
+    # Fix the axis limits so the view doesn't jump around
+    ax.set_xlim(X_MIN, X_MAX)
+    ax.set_ylim(Y_MIN, Y_MAX)
 
-        ax.scatter(xs, ys, s=80, label="Anchors")
-        for name, (x, y) in anchors.items():
-            ax.text(x, y, name)
+    # Plot anchors
+    xs = [anchors[k][0] for k in anchors]
+    ys = [anchors[k][1] for k in anchors]
+    ax.scatter(xs, ys, s=80, label="Anchors")
+    for name, (x, y) in anchors.items():
+        ax.text(x, y, name)
 
     # Plot tag position
     if tag_pos is not None:
         ax.scatter(tag_pos[0], tag_pos[1], s=120, label="Tag")
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
+    ax.set_xlabel("X (cm)")
+    ax.set_ylabel("Y (cm)")
     ax.set_title("UWB Anchor + Tag Visualization")
     ax.legend()
     ax.set_aspect("equal", "box")  # keep aspect ratio square
 
     plt.draw()
-    plt.pause(0.01)
+    plt.pause(0.001)
 
 # ------------------------
 # Main Loop
@@ -64,11 +77,6 @@ try:
         line = ser.readline().decode(errors="ignore").strip()
         if not line:
             continue
-
-        # Example lines:
-        #   "151.18,172.03"         -> we want to plot this
-        #   "Distance (int): 44"    -> we want to ignore this
-        #   "Triangulation failed..." -> ignore
 
         # Quick filter: if there's no comma, it can't be "x,y"
         if "," not in line:
