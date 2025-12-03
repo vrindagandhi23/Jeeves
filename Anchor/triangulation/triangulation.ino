@@ -102,17 +102,18 @@ void setup() {
   anchors = {
     {137.0,   0.0},
     {0.0, 0.0},
-    {0.0, 127.0}
+    {0.0, 127.0},
+    {0.0, 0.0}
   };
 
-  distances.resize(3);
+  distances.resize(4);
 
   Serial.println("Listening for RYUW responses...");
 }
 
 void loop() {
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 4; i++) {
 
     // Send command to current TAG
     RYUW.println("AT+ANCHOR_SEND=TAG" + String(i + 1) + ",1,A");
