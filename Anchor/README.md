@@ -41,7 +41,10 @@ Used to send and recieve AT commands to ESP32
 Flash the code onto the ESP32 connected to the Anchor. It will poll the 3 Tags and print their distance from the Anchor.
 #### Debug
 Check the addresses in the address definitions to make sure they exactly match the name.
-### 
+### Triangulation.ino
+Built off AnchorPolling.ino. Polls the 3 distances from the tags and based on a given position for these anchors (specificed in the file), prints the position of the anchor.
+### TriangulationVisualizer.py
+Runs on the computer connected to the Anchor running Triangulation.ino. Visualizes the position of the tags and anchor real time. Make sure the serial monitor in Arduino is closed or else won't run.
 
 
 
