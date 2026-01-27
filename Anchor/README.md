@@ -37,7 +37,11 @@ and you should recieve an OK response. If no response, check ESP32 wiring and po
 ## Program Functions
 ### ATCommand.ino
 Used to send and recieve AT commands to ESP32
-### Polling.ino
+### AnchorPolling.ino
+Flash the code onto the ESP32 connected to the Anchor. It will poll the 3 Tags and print their distance from the Anchor.
+#### Debug
+Check the addresses in the address definitions to make sure they exactly match the name.
+### 
 
 
 
