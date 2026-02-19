@@ -253,6 +253,10 @@ static void taskMotor(void* pvParameters) {
 // ----------------------------- setup -----------------------------------------
 void setup() {
   Serial.begin(115200);
+  // Give Serial Monitor time to connect; bootloader runs at 74880 so open monitor at 115200 then press Reset
+  delay(1500);
+  Serial.println("AnchorRobot starting...");
+
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
   pinMode(RYUW_NRST, OUTPUT);
@@ -268,10 +272,10 @@ void setup() {
   digitalWrite(STBY, HIGH);
 
   // Tag positions (bed corners) — set to your layout; used as "anchors" for triangulation
-  anchors[0] = { 137.0f,   0.0f };
-  anchors[1] = {   0.0f,   0.0f };
-  anchors[2] = {   0.0f, 127.0f };
-  anchors[3] = { 137.0f, 127.0f };
+  anchors[0] = { 0.0f,   0.0f };
+  anchors[1] = {   0.0f,   137.0f };
+  anchors[2] = {   127.0f, 0.0f };
+  anchors[3] = { 127.0f, 137.0f };
 
   // Single-slot queue: overwrite so motor always gets latest position
   positionQueue = xQueueCreate(POSITION_QUEUE_LEN, sizeof(PositionMessage_t));
@@ -285,7 +289,7 @@ void setup() {
   goalY = anchors[0].y;
 
   BaseType_t ok;
-  ok = xTaskCreate(taskUWB, "UWB", 4096, NULL, 1, NULL);
+  ok = xTaskCreate(taskUWB, "UWB", 5120, NULL, 1, NULL);
   if (ok != pdPASS) {
     Serial.println("FATAL: UWB task create failed");
     for (;;) delay(1000);

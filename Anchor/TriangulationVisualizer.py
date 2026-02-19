@@ -5,21 +5,28 @@ import matplotlib.pyplot as plt
 # ------------------------
 # User settings
 # ------------------------
-SERIAL_PORT = "/dev/cu.usbserial-0001"   # Change to your port
+# Windows: "COM7", "COM3", etc. (check Device Manager or Arduino IDE)
+# macOS:   "/dev/cu.usbserial-0001" or "/dev/cu.usbmodem*"
+SERIAL_PORT = "COM7"
 BAUDRATE = 115200
 
 # ------------------------
 # Open Serial
 # ------------------------
-ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
-time.sleep(2)
+try:
+    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=1)
+    time.sleep(2)
+except serial.SerialException as e:
+    print(f"Cannot open {SERIAL_PORT}: {e}")
+    print("Close Arduino Serial Monitor (or anything else using the port), then run again.")
+    raise SystemExit(1)
 
 # Anchors in 2D (change these to your actual coordinates)
 anchors = {
-    "TAG1": (137.0, 0.0),
-    "TAG2": (0.0, 0.0),
-    "TAG3": (0.0, 127.0),
-    "TAG4": (137.0, 127.0)
+    "TAG1": (0.0, 0.0),
+    "TAG2": (0.0, 137.0),
+    "TAG3": (127.0, 0.0),
+    "TAG4": (127.0, 137.0)
 }
 
 tag_pos = None
@@ -90,6 +97,7 @@ try:
             x = float(parts[0])
             y = float(parts[1])
             tag_pos = (x, y)
+            print(f"Position: {x:.1f}, {y:.1f}")  # live output so you don't need Serial Monitor
             update_plot()
         except ValueError:
             # Not numeric "x,y" (e.g. some other line with a comma) → skip

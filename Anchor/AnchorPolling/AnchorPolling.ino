@@ -1,12 +1,12 @@
-##define TXD2 17
+#define TXD2 17
 #define RXD2 16
 #define RYUW_NRST 4
 
 HardwareSerial RYUW(2);
 
 // List of TAG names to poll
-String tagList[] = { "TAG1", "TAG2", "TAG3" };
-int totalTags = 3;
+String tagList[] = { "TAG1", "TAG2", "TAG3", "TAG4" };
+int totalTags = 4;
 int currentTag = 0;
 
 unsigned long lastPollTime = 0;
