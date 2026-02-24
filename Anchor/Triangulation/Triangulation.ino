@@ -19,6 +19,21 @@ int tags;
 
 std::vector<float> distances;
 
+// ------------------------ Simple stabilization ------------------------
+// Smooth distances before triangulation, then smooth (x,y) output.
+static std::vector<float> distFilt;
+static std::vector<bool> distInit;
+static bool posInit = false;
+static float posXFilt = 0.0f;
+static float posYFilt = 0.0f;
+
+static const float DIST_ALPHA = 0.35f; // 0..1 (higher = more responsive)
+static const float POS_ALPHA  = 0.20f; // 0..1
+
+static float ema(float prev, float next, float alpha) {
+  return prev + alpha * (next - prev);
+}
+
 // Performs 2D triangulation using least squares
 bool triangulate(
     const std::vector<Anchor> &anchors,
@@ -107,6 +122,8 @@ void setup() {
   };
 
   distances.resize(4);
+  distFilt.assign(4, 0.0f);
+  distInit.assign(4, false);
 
   Serial.println("Listening for RYUW responses...");
 }
@@ -138,7 +155,14 @@ void loop() {
 
             // Convert to integer
             int distance = distanceStr.toInt();
-            distances[i] = distance;
+            float dRaw = (float)distance;
+            if (!distInit[i]) {
+              distFilt[i] = dRaw;
+              distInit[i] = true;
+            } else {
+              distFilt[i] = ema(distFilt[i], dRaw, DIST_ALPHA);
+            }
+            distances[i] = distFilt[i];
             Serial.print("Distance (int): ");
             Serial.println(distance);
             gotDistance = true;
@@ -157,8 +181,24 @@ void loop() {
   }
 
   float x, y;
-  if (triangulate(anchors, distances, x, y)) {
-    Serial.println(String(x) + "," + String(y));
+  bool haveAllDistances = true;
+  for (int i = 0; i < 4; i++) {
+    if (!distInit[i]) {
+      haveAllDistances = false;
+      break;
+    }
+  }
+
+  if (haveAllDistances && triangulate(anchors, distances, x, y)) {
+    if (!posInit) {
+      posXFilt = x;
+      posYFilt = y;
+      posInit = true;
+    } else {
+      posXFilt = ema(posXFilt, x, POS_ALPHA);
+      posYFilt = ema(posYFilt, y, POS_ALPHA);
+    }
+    Serial.println(String(posXFilt) + "," + String(posYFilt));
   } else {
     Serial.println("Triangulation failed (not enough data or singular matrix)");
   }

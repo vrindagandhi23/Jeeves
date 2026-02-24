@@ -57,6 +57,26 @@ static Anchor anchors[4];
 static float distances[4];
 static const int NUM_TAGS = 4;
 
+// ----------------------------- Simple stabilization --------------------------
+// Filter distances first (reduces jitter before triangulation), then filter (x,y),
+// and reject physically-impossible jumps.
+static float distFilt[NUM_TAGS] = {0, 0, 0, 0};
+static bool distInit[NUM_TAGS] = {false, false, false, false};
+
+static float posXFilt = 0.0f;
+static float posYFilt = 0.0f;
+static bool posInit = false;
+static TickType_t lastPosTick = 0;
+
+static constexpr float DIST_ALPHA = 0.35f;     // 0..1 (higher = more responsive)
+static constexpr float POS_ALPHA  = 0.20f;     // 0..1
+static constexpr float MAX_SPEED_CM_S = 120.0f; // used for jump rejection
+static constexpr float JUMP_MARGIN_CM = 15.0f;  // extra allowance on top of speed gate
+
+static float ema(float prev, float next, float alpha) {
+  return prev + alpha * (next - prev);
+}
+
 static bool triangulate(
     const Anchor* anchors,
     const float* distances,
@@ -205,7 +225,14 @@ static void taskUWB(void* pvParameters) {
               String distanceStr = response.substring(lastComma + 1);
               distanceStr.replace("cm", "");
               distanceStr.trim();
-              distances[i] = (float)distanceStr.toInt();
+              float dRaw = (float)distanceStr.toInt();
+              if (!distInit[i]) {
+                distFilt[i] = dRaw;
+                distInit[i] = true;
+              } else {
+                distFilt[i] = ema(distFilt[i], dRaw, DIST_ALPHA);
+              }
+              distances[i] = distFilt[i];
               gotDistance = true;
               break;
             }
@@ -215,12 +242,53 @@ static void taskUWB(void* pvParameters) {
       }
 
       if (!gotDistance) {
-        distances[i] = 0.0f;
+        // If we miss an update, keep the last filtered value (if any) rather than injecting 0.
+        distances[i] = distInit[i] ? distFilt[i] : 0.0f;
       }
       vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    if (triangulate(anchors, distances, NUM_TAGS, msg.x, msg.y)) {
+    float xRaw = 0.0f;
+    float yRaw = 0.0f;
+    bool haveAllDistances = true;
+    for (int i = 0; i < NUM_TAGS; i++) {
+      if (!distInit[i]) {
+        haveAllDistances = false;
+        break;
+      }
+    }
+
+    if (haveAllDistances && triangulate(anchors, distances, NUM_TAGS, xRaw, yRaw)) {
+      TickType_t now = xTaskGetTickCount();
+      float dtS = (lastPosTick == 0) ? 0.0f : ((float)(now - lastPosTick) / (float)configTICK_RATE_HZ);
+      lastPosTick = now;
+
+      if (!posInit) {
+        posXFilt = xRaw;
+        posYFilt = yRaw;
+        posInit = true;
+      } else {
+        float dx = xRaw - posXFilt;
+        float dy = yRaw - posYFilt;
+        float step = sqrtf(dx * dx + dy * dy);
+
+        // Gate based on plausible max step given time elapsed
+        float maxStep = JUMP_MARGIN_CM;
+        if (dtS > 0.0f) {
+          maxStep += MAX_SPEED_CM_S * dtS;
+        } else {
+          maxStep += 30.0f; // first step after init: be permissive
+        }
+
+        if (step <= maxStep) {
+          posXFilt = ema(posXFilt, xRaw, POS_ALPHA);
+          posYFilt = ema(posYFilt, yRaw, POS_ALPHA);
+        }
+        // else: reject this jump; keep filtered position as-is
+      }
+
+      msg.x = posXFilt;
+      msg.y = posYFilt;
       msg.valid = 1;
       xQueueOverwrite(positionQueue, &msg);
     } else {
