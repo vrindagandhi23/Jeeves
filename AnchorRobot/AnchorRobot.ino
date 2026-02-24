@@ -15,19 +15,20 @@
 #define RYUW_NRST 4
 HardwareSerial RYUW(2);
 
+
 // ----------------------------- Motor pins (TB6612FNG) ------------------------
-#define ENA 10
-#define IN1 9
-#define IN2 13
-#define IN3 12
-#define IN4 14
-#define ENB 27
+#define ENA 12
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENB 33
 #define STBY 32 // not used
 
 // SERVO PINS 
 /* wheels in the back
-#define SERVO_PINL 7
-#define SERVO_PINR 8
+#define SERVO_PINL 18
+#define SERVO_PINR 19
 
 */
 
