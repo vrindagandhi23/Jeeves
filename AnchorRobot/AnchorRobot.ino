@@ -381,4 +381,8 @@ void loop() {
   Serial.print(robotX);
   Serial.print(", ");
   Serial.println(robotY);
+  // Raw CSV line for TriangulationVisualizer.py ("x,y")
+  Serial.print(robotX);
+  Serial.print(",");
+  Serial.println(robotY);
 }
