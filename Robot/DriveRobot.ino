@@ -5,14 +5,28 @@
 // Robot will drive toward a fixed target (goalX, goalY)
 // -----------------------------------------------------------------
 
-// --------------------- Motor Pin Mapping --------------------------
-#define ENA 14
-#define IN1 27
-#define IN2 26
-#define IN3 25
-#define IN4 33
-#define ENB 12
-#define STBY 32
+// ----------------------------- UWB (Serial) ----------------------------------
+#define TXD2 17
+#define RXD2 16
+#define RYUW_NRST 4
+HardwareSerial RYUW(2);
+
+
+// ----------------------------- Motor pins (TB6612FNG) ------------------------
+#define ENA 12
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENB 33
+#define STBY 32 // not used
+
+// SERVO PINS 
+/* wheels in the back
+#define SERVO_PINL 18
+#define SERVO_PINR 19
+
+*/
 
 // --------------------- Robot State --------------------------------
 float robotX = 0;
