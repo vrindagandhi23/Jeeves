@@ -1,0 +1,62 @@
+#include "TriangulationTest.h"
+
+HardwareSerial RYUW(2);
+std::vector<Anchor> anchors;
+
+void TriangulationTestSetup() {
+
+  Serial.begin(115200);
+  RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
+
+  pinMode(RYUW_NRST, OUTPUT);
+  digitalWrite(RYUW_NRST, HIGH);
+
+  anchors.push_back(Anchor(0, 0, "TAG0"));
+  anchors.push_back(Anchor(0, 0, "TAG1"));
+  anchors.push_back(Anchor(0, 0, "TAG2"));
+  anchors.push_back(Anchor(0, 0, "TAG3"));
+
+  Serial.println("Listening for RYUW responses...");
+}
+
+void TriangulationTestLoop() {
+
+  for (int i = 0; i < anchors.size(); i++) {
+
+    if(anchors[i].PollDistance(RYUW)){
+
+      Serial.print("Distance Raw (float): ");
+      Serial.println(anchors[i].GetRawDistance());
+
+      Serial.print("Distance Filtered (float): ");
+      Serial.println(anchors[i].GetDistance());
+    }
+    else{
+      Serial.print("Distance Failed: ");
+      Serial.println(i + 1);
+    }
+  }
+
+  float x, y;
+  bool haveAllDistances = true;
+  for (int i = 0; i < 4; i++) {
+    if (!anchors[i].GetDistInitialize()) {
+      haveAllDistances = false;
+      break;
+    }
+  }
+
+  if (haveAllDistances && triangulate(anchors, x, y)) {
+    if (!posInit) {
+      posXFilt = x;
+      posYFilt = y;
+      posInit = true;
+    } else {
+      posXFilt = ema(posXFilt, x, POS_ALPHA);
+      posYFilt = ema(posYFilt, y, POS_ALPHA);
+    }
+    Serial.println(String(posXFilt) + "," + String(posYFilt));
+  } else {
+    Serial.println("Triangulation failed (not enough data or singular matrix)");
+  }
+}

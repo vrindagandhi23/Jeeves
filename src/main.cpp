@@ -1,0 +1,216 @@
+// =============================================================================
+// Bed-Making Robot: Anchor with UWB Triangulation + Motor Control
+// FreeRTOS architecture: Task_UWB → Position Queue → Task_Motor
+// Interrupts used only for timing/notifications; heavy work in tasks.
+// =============================================================================
+
+#include <Arduino.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "Robot.h"
+#include "Anchor.h"
+#include "Triangulation.h"
+#include <vector>
+
+// ----------------------------- UWB (Serial) ----------------------------------
+#define TXD2 17
+#define RXD2 16
+#define RYUW_NRST 4
+HardwareSerial RYUW(2);
+
+
+// ----------------------------- Motor pins (TB6612FNG) ------------------------
+#define ENA 12
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENB 33
+#define STBY 32 // not used
+
+// SERVO PINS 
+/* wheels in the back
+#define SERVO_PINL 18
+#define SERVO_PINR 19
+
+*/
+
+// ----------------------------- Position queue (UWB → Motor) ------------------
+typedef struct {
+  float x;
+  float y;
+  uint8_t valid;  // 1 = fresh position, 0 = no fix yet
+} PositionMessage_t;
+
+#define POSITION_QUEUE_LEN  1
+static QueueHandle_t positionQueue = NULL;
+
+// ----------------------------- Robot state (motor task) ----------------------
+Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY);
+
+// ----------------------------- Triangulation (from Anchor/Triangulation.ino) -
+std::vector<Anchor> anchors;
+
+
+// ----------------------------- Simple stabilization --------------------------
+// Filter distances first (reduces jitter before triangulation), then filter (x,y),
+// and reject physically-impossible jumps.
+
+static float posXFilt = 0.0f;
+static float posYFilt = 0.0f;
+static bool posInit = false;
+static TickType_t lastPosTick = 0;
+
+static constexpr float POS_ALPHA  = 0.20f;     // 0..1
+static constexpr float MAX_SPEED_CM_S = 120.0f; // used for jump rejection
+static constexpr float JUMP_MARGIN_CM = 15.0f;  // extra allowance on top of speed gate
+
+// ----------------------------- Task: UWB + Triangulation ---------------------
+// Lower priority; runs triangulation and sends latest position to queue.
+// Interrupts (if added later): use only to set a flag or give a semaphore;
+// this task does all UWB read + triangulation so ISRs stay short.
+static void taskUWB(void* pvParameters) {
+  (void)pvParameters;
+  PositionMessage_t msg = { .x = 0, .y = 0, .valid = 0 };
+
+  for (;;) {
+    for (int i = 0; i < anchors.size(); i++) {
+      if(anchors[i].PollDistance(RYUW)){
+        Serial.print("Distance Raw (float): ");
+        Serial.println(anchors[i].GetRawDistance());
+
+        Serial.print("Distance Filtered (float): ");
+        Serial.println(anchors[i].GetDistance());
+      }
+      else{
+        Serial.print("Distance Failed: ");
+        Serial.println(i + 1);
+      }
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    float xRaw = 0.0f;
+    float yRaw = 0.0f;
+    bool haveAllDistances = true;
+    for (int i = 0; i < anchors.size(); i++) {
+      if (!anchors[i].GetDistInitialize()) {
+        haveAllDistances = false;
+        break;
+      }
+    }
+
+    if (haveAllDistances && triangulate(anchors, xRaw, yRaw)) {
+      TickType_t now = xTaskGetTickCount();
+      float dtS = (lastPosTick == 0) ? 0.0f : ((float)(now - lastPosTick) / (float)configTICK_RATE_HZ);
+      lastPosTick = now;
+
+      if (!posInit) {
+        posXFilt = xRaw;
+        posYFilt = yRaw;
+        posInit = true;
+      } else {
+        float dx = xRaw - posXFilt;
+        float dy = yRaw - posYFilt;
+        float step = sqrtf(dx * dx + dy * dy);
+
+        // Gate based on plausible max step given time elapsed
+        float maxStep = JUMP_MARGIN_CM;
+        if (dtS > 0.0f) {
+          maxStep += MAX_SPEED_CM_S * dtS;
+        } else {
+          maxStep += 30.0f; // first step after init: be permissive
+        }
+
+        if (step <= maxStep) {
+          posXFilt = ema(posXFilt, xRaw, POS_ALPHA);
+          posYFilt = ema(posYFilt, yRaw, POS_ALPHA);
+        }
+        // else: reject this jump; keep filtered position as-is
+      }
+
+      msg.x = posXFilt;
+      msg.y = posYFilt;
+      msg.valid = 1;
+      xQueueOverwrite(positionQueue, &msg);
+    } else {
+      msg.valid = 0;
+      xQueueOverwrite(positionQueue, &msg);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+
+// ----------------------------- Task: Motor control ---------------------------
+// Highest priority; fixed rate; reads latest position and runs pursuit.
+static void taskMotor(void* pvParameters) {
+  (void)pvParameters;
+  const TickType_t period = pdMS_TO_TICKS(50);
+  PositionMessage_t msg = { .x = 0, .y = 0, .valid = 0 };
+
+  for (;;) {
+    if (xQueueReceive(positionQueue, &msg, 0) == pdTRUE && msg.valid) {
+      robot.updatePosition(msg.x, msg.y);
+    }
+
+    robot.pursueTarget();
+    vTaskDelay(period);
+  }
+}
+
+// ----------------------------- setup -----------------------------------------
+void setup() {
+  Serial.begin(115200);
+  // Give Serial Monitor time to connect; bootloader runs at 74880 so open monitor at 115200 then press Reset
+  delay(1500);
+  Serial.println("AnchorRobot starting...");
+
+  RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
+
+  anchors.push_back(Anchor(0, 0, "TAG0"));
+  anchors.push_back(Anchor(0, 0, "TAG1"));
+  anchors.push_back(Anchor(0, 0, "TAG2"));
+  anchors.push_back(Anchor(0, 0, "TAG3"));
+
+  pinMode(RYUW_NRST, OUTPUT);
+  digitalWrite(RYUW_NRST, HIGH);
+
+  // Single-slot queue: overwrite so motor always gets latest position
+  positionQueue = xQueueCreate(POSITION_QUEUE_LEN, sizeof(PositionMessage_t));
+  if (positionQueue == NULL) {
+    Serial.println("FATAL: position queue create failed");
+    for (;;) delay(1000);
+  }
+
+  BaseType_t ok;
+  ok = xTaskCreate(taskUWB, "UWB", 5120, NULL, 1, NULL);
+  if (ok != pdPASS) {
+    Serial.println("FATAL: UWB task create failed");
+    for (;;) delay(1000);
+  }
+
+  ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
+  if (ok != pdPASS) {
+    Serial.println("FATAL: Motor task create failed");
+    for (;;) delay(1000);
+  }
+
+  Serial.println("AnchorRobot FreeRTOS: UWB + Motor tasks running.");
+}
+
+// ----------------------------- loop ------------------------------------------
+// FreeRTOS scheduler runs tasks; loop can be used for debug or low-priority work.
+void loop() {
+  vTaskDelay(pdMS_TO_TICKS(1000));
+  float robotX, robotY;
+  robot.GetPosition(robotX, robotY);
+  Serial.print("Position: ");
+  Serial.print(robotX);
+  Serial.print(", ");
+  Serial.println(robotY);
+  // Raw CSV line for TriangulationVisualizer.py ("x,y")
+  Serial.print(robotX);
+  Serial.print(",");
+  Serial.println(robotY);
+}
