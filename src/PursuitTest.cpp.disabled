@@ -1,0 +1,54 @@
+// -----------------------------------------------------------------
+// Robot Pursuit Controller (no triangulation inside)
+// Uses TB6612FNG + ESP32
+// Provide robotX, robotY externally by calling updateRobotPosition()
+// Robot will drive toward a fixed target (goalX, goalY)
+// -----------------------------------------------------------------
+
+// ----------------------------- UWB (Serial) ----------------------------------
+#include <Arduino.h>
+#include "Robot.h"
+#define TXD2 17
+#define RXD2 16
+#define RYUW_NRST 4
+HardwareSerial RYUW(2);
+
+
+// ----------------------------- Motor pins (TB6612FNG) ------------------------
+#define ENA 12
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENB 33
+#define STBY 32 // not used
+
+// SERVO PINS 
+/* wheels in the back
+#define SERVO_PINL 18
+#define SERVO_PINR 19
+
+*/
+Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY);
+
+
+// --------------------- Setup --------------------------------------
+void setup() {
+  Serial.begin(115200);
+
+  Serial.println("Robot pursuit controller active.");
+}
+
+// ---------------------- Main Loop ---------------------------------
+void loop() {
+
+  float robotX, robotY;
+
+  robot.GetPosition(robotX, robotY);
+  robotX += 0.1;
+  robotY += 0.05;
+  robot.updatePosition(robotX, robotY);
+
+  robot.pursueTarget();
+  delay(50);
+}
