@@ -47,13 +47,13 @@ void Robot::pursueTarget() {
 
   if (angleError > turnThreshold) {
     Serial.println("Turning right toward target");
-    motors.rightTurn(200);
+    motors.rightTurn(100);
     return;
   }
 
   if (angleError < -turnThreshold) {
     Serial.println("Turning left toward target");
-    motors.leftTurn(200);
+    motors.leftTurn(100);
     return;
   }
 
