@@ -44,22 +44,24 @@ void Robot::pursueTarget() {
 
   // --------------------- Turning Controller ------------------------
   float turnThreshold = 0.25;  // radians (~14°)
+  // Scale all PWM speeds down (e.g. 0.1 = 10% speed)
+  const float SPEED_SCALE = 0.05f; // ~5% speed (tune if needed)
 
   if (angleError > turnThreshold) {
     Serial.println("Turning right toward target");
-    motors.rightTurn(100);
+    motors.rightTurn((int)(100.0f * SPEED_SCALE));
     return;
   }
 
   if (angleError < -turnThreshold) {
     Serial.println("Turning left toward target");
-    motors.leftTurn(100);
+    motors.leftTurn((int)(100.0f * SPEED_SCALE));
     return;
   }
 
   // --------------------- Forward P-controller ----------------------
   float Kp = 3.0;
-  int spd = constrain(dist * Kp, 100, 255);
+  int spd = (int)constrain(dist * Kp * SPEED_SCALE, 5.0f, 255.0f * SPEED_SCALE);
 
   Serial.print("Moving forward @ ");
   Serial.println(spd);
