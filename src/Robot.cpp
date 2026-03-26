@@ -60,8 +60,8 @@ void Robot::pursueTarget() {
   }
 
   // --------------------- Forward P-controller ----------------------
-  float Kp = 3.0;
-  int spd = (int)constrain(dist * Kp * SPEED_SCALE, 5.0f, 255.0f * SPEED_SCALE);
+  //float Kp = 3.0;
+  float spd = 0.05;
 
   Serial.print("Moving forward @ ");
   Serial.println(spd);

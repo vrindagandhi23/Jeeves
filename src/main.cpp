@@ -33,7 +33,7 @@ static SemaphoreHandle_t serialMutex = NULL;
 #define IN2 27
 #define IN3 26
 #define IN4 25
-#define ENB 33
+#define ENB 32
 #define STBY 32 // not used
 
 // SERVO PINS 

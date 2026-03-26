@@ -186,18 +186,20 @@ static void pursueTarget(void) {
   while (angleError < -PI) angleError += 2.0f * PI;
 
   const float turnThreshold = 0.25f;
+  // Scale PWM speeds down (0.05 = 5%). This makes motion less aggressive while you debug.
+  const float SPEED_SCALE = 0.05f;
 
   if (angleError > turnThreshold) {
-    rightTurn(200);
+    rightTurn((int)(200.0f * SPEED_SCALE));
     return;
   }
   if (angleError < -turnThreshold) {
-    leftTurn(200);
+    leftTurn((int)(200.0f * SPEED_SCALE));
     return;
   }
 
   const float Kp = 3.0f;
-  int spd = (int)constrain(dist * Kp, 100.0f, 255.0f);
+  int spd = (int)constrain(dist * Kp * SPEED_SCALE, 5.0f, 255.0f * SPEED_SCALE);
   forward(spd);
 }
 
