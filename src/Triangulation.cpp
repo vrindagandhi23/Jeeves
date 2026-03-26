@@ -53,8 +53,8 @@ bool triangulate(
     invATA[1][1] =  ATA00 / det;
 
     // Solve: position = inv(ATA) * (ATb)
-    outX = invATA[0][0] * ATb[0] + invATA[0][1] * ATb[1];
-    outY = invATA[1][0] * ATb[0] + invATA[1][1] * ATb[1];
+    outX = invATA[0][0] * ATb0 + invATA[0][1] * ATb1;
+    outY = invATA[1][0] * ATb0 + invATA[1][1] * ATb1;
 
     return true;
 }
