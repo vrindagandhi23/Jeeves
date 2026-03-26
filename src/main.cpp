@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "Robot.h"
 #include "Anchor.h"
 #include "Triangulation.h"
@@ -18,6 +19,11 @@
 #define RXD2 16
 #define RYUW_NRST 4
 HardwareSerial RYUW(2);
+
+// ----------------------------- Serial mutexes -------------------------------
+// Guard UART access just in case more than one task ever touches these ports.
+static SemaphoreHandle_t ryuwMutex = NULL;
+static SemaphoreHandle_t serialMutex = NULL;
 
 
 // ----------------------------- Motor pins (TB6612FNG) ------------------------
@@ -76,16 +82,25 @@ static void taskUWB(void* pvParameters) {
 
   for (;;) {
     for (int i = 0; i < anchors.size(); i++) {
-      if(anchors[i].PollDistance(RYUW)){
+      bool ok = false;
+      if (ryuwMutex) xSemaphoreTake(ryuwMutex, portMAX_DELAY);
+      ok = anchors[i].PollDistance(RYUW);
+      if (ryuwMutex) xSemaphoreGive(ryuwMutex);
+
+      if(ok){
+        if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
         Serial.print("Distance Raw (float): ");
         Serial.println(anchors[i].GetRawDistance());
 
         Serial.print("Distance Filtered (float): ");
         Serial.println(anchors[i].GetDistance());
+        if (serialMutex) xSemaphoreGive(serialMutex);
       }
       else{
+        if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
         Serial.print("Distance Failed: ");
         Serial.println(i + 1);
+        if (serialMutex) xSemaphoreGive(serialMutex);
       }
       vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -166,6 +181,10 @@ void setup() {
   delay(1500);
   Serial.println("AnchorRobot starting...");
 
+  // Create mutexes before tasks start.
+  ryuwMutex = xSemaphoreCreateMutex();
+  serialMutex = xSemaphoreCreateMutex();
+
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
   anchors.push_back(Anchor(0, 0, "TAG0"));
@@ -205,6 +224,7 @@ void loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
   float robotX, robotY;
   robot.GetPosition(robotX, robotY);
+  if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
   Serial.print("Position: ");
   Serial.print(robotX);
   Serial.print(", ");
@@ -213,4 +233,5 @@ void loop() {
   Serial.print(robotX);
   Serial.print(",");
   Serial.println(robotY);
+  if (serialMutex) xSemaphoreGive(serialMutex);
 }

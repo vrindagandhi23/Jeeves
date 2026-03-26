@@ -14,18 +14,18 @@ bool triangulate(
     anchors[0].GetPosition(x1, y1);
     float d1 = anchors[0].GetDistance();
 
-    // Build A (n-1 × 2) and b (n-1)
-    std::vector<std::array<float, 2>> A;
-    std::vector<float> b;
-    A.reserve(n - 1);
-    b.reserve(n - 1);
+    // Compute ATA = AᵀA and ATb = Aᵀb
+    float ATA00 = 0.0f, ATA01 = 0.0f;
+    float ATA10 = 0.0f, ATA11 = 0.0f;
+    float ATb0 = 0.0f, ATb1 = 0.0f;
 
     for (int i = 1; i < n; i++) {
         float xi, yi;
         anchors[i].GetPosition(xi, yi);
         float di = anchors[i].GetDistance();
 
-        A.push_back({ xi - x1, yi - y1 });
+        float ax = xi - x1;
+        float ay = yi - y1;
 
         float bi = 0.5f * (
             (d1 * d1 - di * di) +
@@ -33,34 +33,24 @@ bool triangulate(
             (yi * yi - y1 * y1)
         );
 
-        b.push_back(bi);
-    }
+        ATA00 += ax * ax;
+        ATA01 += ax * ay;
+        ATA10 += ay * ax;
+        ATA11 += ay * ay;
 
-    int m = n - 1; // number of rows
-
-    // Compute ATA = AᵀA and ATb = Aᵀb
-    float ATA[2][2] = {{0,0},{0,0}};
-    float ATb[2] = {0, 0};
-
-    for (int i = 0; i < m; i++) {
-        ATA[0][0] += A[i][0] * A[i][0];
-        ATA[0][1] += A[i][0] * A[i][1];
-        ATA[1][0] += A[i][1] * A[i][0];
-        ATA[1][1] += A[i][1] * A[i][1];
-
-        ATb[0] += A[i][0] * b[i];
-        ATb[1] += A[i][1] * b[i];
+        ATb0 += ax * bi;
+        ATb1 += ay * bi;
     }
 
     // Invert 2×2 matrix
-    float det = ATA[0][0] * ATA[1][1] - ATA[0][1] * ATA[1][0];
+    float det = ATA00 * ATA11 - ATA01 * ATA10;
     if (fabs(det) < 1e-6) return false;
 
     float invATA[2][2];
-    invATA[0][0] =  ATA[1][1] / det;
-    invATA[0][1] = -ATA[0][1] / det;
-    invATA[1][0] = -ATA[1][0] / det;
-    invATA[1][1] =  ATA[0][0] / det;
+    invATA[0][0] =  ATA11 / det;
+    invATA[0][1] = -ATA01 / det;
+    invATA[1][0] = -ATA10 / det;
+    invATA[1][1] =  ATA00 / det;
 
     // Solve: position = inv(ATA) * (ATb)
     outX = invATA[0][0] * ATb[0] + invATA[0][1] * ATb[1];

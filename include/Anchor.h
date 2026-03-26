@@ -25,7 +25,7 @@ public:
   False if fails
   Raw reading
   */
-  bool PollDistance(HardwareSerial RYUW);
+  bool PollDistance(HardwareSerial& RYUW);
 // returns anchor position by reference
   void GetPosition(float &x, float &y) const;
 // returns raw anchor distance
