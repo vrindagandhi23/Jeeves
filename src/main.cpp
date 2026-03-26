@@ -13,6 +13,7 @@
 #include "Anchor.h"
 #include "Triangulation.h"
 #include <vector>
+#include <ESP32Servo.h>
 
 // ----------------------------- UWB (Serial) ----------------------------------
 #define TXD2 17
@@ -36,11 +37,9 @@ static SemaphoreHandle_t serialMutex = NULL;
 #define STBY 32 // not used
 
 // SERVO PINS 
-/* wheels in the back
+//wheels in the back
 #define SERVO_PINL 18
 #define SERVO_PINR 19
-
-*/
 
 // ----------------------------- Position queue (UWB → Motor) ------------------
 typedef struct {
@@ -59,13 +58,17 @@ Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY);
 std::vector<Anchor> anchors;
 
 
+ 
+Servo servoL;  // create servo object to control a servo
+Servo servoR;
+ 
+
+int pos = 0;    // variable to store the servo position
+
 // ----------------------------- Simple stabilization --------------------------
 // Filter distances first (reduces jitter before triangulation), then filter (x,y),
 // and reject physically-impossible jumps.
-
-static float posXFilt = 0.0f;
-static float posYFilt = 0.0f;
-static bool posInit = false;
+bool posInit = false;
 static TickType_t lastPosTick = 0;
 
 static constexpr float POS_ALPHA  = 0.20f;     // 0..1
@@ -89,6 +92,7 @@ static void taskUWB(void* pvParameters) {
 
       if(ok){
         if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
+        Serial.println(i);
         Serial.print("Distance Raw (float): ");
         Serial.println(anchors[i].GetRawDistance());
 
@@ -105,6 +109,8 @@ static void taskUWB(void* pvParameters) {
       vTaskDelay(pdMS_TO_TICKS(5));
     }
 
+    // if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
+    
     float xRaw = 0.0f;
     float yRaw = 0.0f;
     bool haveAllDistances = true;
@@ -114,20 +120,28 @@ static void taskUWB(void* pvParameters) {
         break;
       }
     }
+    
+    // Serial.println("Has all distances");
 
     if (haveAllDistances && triangulate(anchors, xRaw, yRaw)) {
       TickType_t now = xTaskGetTickCount();
       float dtS = (lastPosTick == 0) ? 0.0f : ((float)(now - lastPosTick) / (float)configTICK_RATE_HZ);
       lastPosTick = now;
 
-      if (!posInit) {
+      float posXFilt, posYFilt;
+      if (!posInit) {   
         posXFilt = xRaw;
         posYFilt = yRaw;
+        robot.updatePosition(xRaw, yRaw);
         posInit = true;
       } else {
+        robot.GetPosition(posXFilt, posYFilt);
         float dx = xRaw - posXFilt;
         float dy = yRaw - posYFilt;
         float step = sqrtf(dx * dx + dy * dy);
+
+        // Serial.print("step ");
+        // Serial.println(step);
 
         // Gate based on plausible max step given time elapsed
         float maxStep = JUMP_MARGIN_CM;
@@ -140,6 +154,7 @@ static void taskUWB(void* pvParameters) {
         if (step <= maxStep) {
           posXFilt = ema(posXFilt, xRaw, POS_ALPHA);
           posYFilt = ema(posYFilt, yRaw, POS_ALPHA);
+          robot.updatePosition(posXFilt, posYFilt);
         }
         // else: reject this jump; keep filtered position as-is
       }
@@ -152,7 +167,7 @@ static void taskUWB(void* pvParameters) {
       msg.valid = 0;
       xQueueOverwrite(positionQueue, &msg);
     }
-
+    // if (serialMutex) xSemaphoreGive(serialMutex);
     vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
@@ -187,13 +202,19 @@ void setup() {
 
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
-  anchors.push_back(Anchor(0, 0, "TAG0"));
-  anchors.push_back(Anchor(0, 0, "TAG1"));
+  // anchors.push_back(Anchor(0, 0, "TAG1"));
   anchors.push_back(Anchor(0, 0, "TAG2"));
-  anchors.push_back(Anchor(0, 0, "TAG3"));
+  anchors.push_back(Anchor(0, 1, "TAG3"));
+  anchors.push_back(Anchor(1, 0, "TAG4"));
 
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
+
+  for (pos = 180; pos >= 90; pos -= 1) { // goes from 180 degrees to 0 degrees
+    servoL.write(pos);    // tell servo to go to position in variable 'pos'
+    servoR.write(pos);
+    delay(15);             // waits 15ms for the servo to reach the position
+	}
 
   // Single-slot queue: overwrite so motor always gets latest position
   positionQueue = xQueueCreate(POSITION_QUEUE_LEN, sizeof(PositionMessage_t));

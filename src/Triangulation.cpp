@@ -9,6 +9,8 @@ bool triangulate(
     int n = anchors.size();
     if (n < 3) return false;
 
+    // Serial.println("enough stuff");
+
     // Reference anchor
     float x1, y1;
     anchors[0].GetPosition(x1, y1);

@@ -21,7 +21,4 @@ extern HardwareSerial RYUW;
 
 extern std::vector<Anchor> anchors;
 
-void TriangulationTestSetup();
-void TriangulationTestLoop();
-
 #endif

@@ -20,7 +20,7 @@ struct DistanceFilter{
     bool spikeRejection(float dRaw);
     void updateMedianWindow(float dRaw);
     float MedianFilter(float dRaw);
-    void filter(float dRaw);
+    bool filter(float dRaw);
 };
 
 #endif

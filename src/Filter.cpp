@@ -12,14 +12,15 @@ float DistanceFilter::median3(float a, float b, float c) {
 
 // true for continue, false for reject
 bool DistanceFilter::spikeRejection(float dRaw){
-    return distInit && fabs(dRaw - dFilt) > SPIKE_REJECTION_DIST;
+    return !distInit || fabs(dRaw - dFilt) < SPIKE_REJECTION_DIST;
 }
 
 void DistanceFilter::updateMedianWindow(float dRaw){
     // --- Median filter window update ---
     medianWindow[windowIndex] = dRaw;
     if(windowIndex== 2){
-    windowFilled = true;
+        windowFilled = true;
+        // Serial.println("window filled");
     }
     windowIndex = (windowIndex + 1) % 3;
 }
@@ -38,16 +39,22 @@ float DistanceFilter::MedianFilter(float dRaw){
     }
 }
 
-void DistanceFilter::filter(float dRaw){
+bool DistanceFilter::filter(float dRaw){
     if(spikeRejection(dRaw)){
         updateMedianWindow(dRaw);
         float dMedian = MedianFilter(dRaw);
+        // Serial.print("dMedian: ");
+        // Serial.println(dMedian);
                 // --- EMA smoothing ---
         if (!distInit) {
             distInit = true;
             dFilt = dMedian;
+            return true;
         } else {
-            float dFilt = ema(dFilt, dMedian, DIST_ALPHA);
+            dFilt = ema(dFilt, dMedian, DIST_ALPHA);
+            return true;
         }
     }
+    // Serial.println("failed spike rejection");
+    return false;
 }

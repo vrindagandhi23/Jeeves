@@ -3,7 +3,7 @@
 HardwareSerial RYUW(2);
 std::vector<Anchor> anchors;
 
-void TriangulationTestSetup() {
+void setup() {
 
   Serial.begin(115200);
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
@@ -11,15 +11,15 @@ void TriangulationTestSetup() {
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
 
-  anchors.push_back(Anchor(0, 0, "TAG0"));
-  anchors.push_back(Anchor(0, 0, "TAG1"));
+  // anchors.push_back(Anchor(0, 0, "TAG1"));
   anchors.push_back(Anchor(0, 0, "TAG2"));
-  anchors.push_back(Anchor(0, 0, "TAG3"));
+  anchors.push_back(Anchor(1, 0, "TAG3"));
+  anchors.push_back(Anchor(1, 1, "TAG4"));
 
   Serial.println("Listening for RYUW responses...");
 }
 
-void TriangulationTestLoop() {
+void loop() {
 
   for (int i = 0; i < anchors.size(); i++) {
 
@@ -39,7 +39,7 @@ void TriangulationTestLoop() {
 
   float x, y;
   bool haveAllDistances = true;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < anchors.size(); i++) {
     if (!anchors[i].GetDistInitialize()) {
       haveAllDistances = false;
       break;
