@@ -210,16 +210,6 @@ void setup() {
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
 
-  // Aservo stuff
-	ESP32PWM::allocateTimer(0);
-	ESP32PWM::allocateTimer(1);
-	ESP32PWM::allocateTimer(2);
-	ESP32PWM::allocateTimer(3);
-	servoL.setPeriodHertz(50);    // standard 50 hz servo
-  servoR.setPeriodHertz(50);
-	servoL.attach(SERVO_PINL, 500, 2400); // attaches the servo on pin 18 to the servo object
-  servoR.attach(SERVO_PINR, 500, 2400);
-
   for (pos = 180; pos >= 90; pos -= 1) { // goes from 180 degrees to 0 degrees
     servoL.write(pos);    // tell servo to go to position in variable 'pos'
     servoR.write(pos);
