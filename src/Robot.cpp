@@ -50,7 +50,11 @@ void Robot::pursueTarget() {
   if (angleError > turnThreshold) {
     Serial.println("Turning right toward target");
 <<<<<<< HEAD
+<<<<<<< HEAD
     motors.rightTurn((int)(100.0f * SPEED_SCALE));
+=======
+    motors.rightTurn(200);
+>>>>>>> parent of 01db254 (ssrvo stuff)
 =======
     motors.rightTurn(200);
 >>>>>>> parent of 01db254 (ssrvo stuff)
@@ -60,7 +64,11 @@ void Robot::pursueTarget() {
   if (angleError < -turnThreshold) {
     Serial.println("Turning left toward target");
 <<<<<<< HEAD
+<<<<<<< HEAD
     motors.leftTurn((int)(100.0f * SPEED_SCALE));
+=======
+    motors.leftTurn(200);
+>>>>>>> parent of 01db254 (ssrvo stuff)
 =======
     motors.leftTurn(200);
 >>>>>>> parent of 01db254 (ssrvo stuff)
