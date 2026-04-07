@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # ------------------------
 # Windows: "COM7", "COM3", etc. (check Device Manager or Arduino IDE)
 # macOS:   "/dev/cu.usbserial-0001" or "/dev/cu.usbmodem*"
-SERIAL_PORT = "COM7"
+SERIAL_PORT = "COM5"
 BAUDRATE = 115200
 
 # ------------------------
@@ -21,12 +21,13 @@ except serial.SerialException as e:
     print("Close Arduino Serial Monitor (or anything else using the port), then run again.")
     raise SystemExit(1)
 
-# Anchors in 2D (change these to your actual coordinates)
+# Anchors in 2D (change these to your actual coordinates)\
+119.38, 101.6
 anchors = {
-    "TAG1": (0.0, 0.0),
-    "TAG2": (0.0, 137.0),
-    "TAG3": (127.0, 0.0),
-    "TAG4": (127.0, 137.0)
+    # "TAG1": (0.0, 0.0),
+    "TAG2": (0, 119.38),
+    "TAG3": (101.6, 0.0),
+    "TAG4": (101.6, 119.38)
 }
 
 tag_pos = None

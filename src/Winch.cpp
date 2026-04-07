@@ -1,15 +1,13 @@
+#include "Winch.h"
 
+Winch::Winch(int IN1, int IN2, int IN3, int IN4){
+    StepperPins[0] = IN1;
+    StepperPins[1] = IN2;
+    StepperPins[2] = IN3;
+    StepperPins[3] = IN4;
+}
 
-// rn single stepping, if we need smoother/more torque we can half step
-
-// 2048 step per rotation
-const float stepAngle = 360.0 / 2048;
-
-// pins need to be defined later
-const byte StepperPins[] = {22, 1, 3, 21}; 
-int step_number = 0;
-
-void OneStep(bool dir){
+void Winch::OneStep(bool dir){
     for(int i = 0; i < 4; i++){
         if(i == step_number){
             digitalWrite(StepperPins[i], HIGH);
@@ -27,7 +25,7 @@ void OneStep(bool dir){
     }
 }
 
-void turnDegrees(int angle){
+void Winch::turnDegrees(int angle){
     int steps = abs(angle) / stepAngle;
     if(angle > 0){
         for(int i = 0; i < steps; i++){
@@ -43,13 +41,4 @@ void turnDegrees(int angle){
     }
 }
 
-void setup(){
-    Serial.begin(115200);
-    for(int i = 0; i < 4; i++){
-        pinMode(StepperPins[i], OUTPUT);
-    }
-}
-void loop(){
-    OneStep(true);
-    Serial.println(step_number);
-}
+
