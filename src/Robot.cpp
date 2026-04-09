@@ -1,6 +1,6 @@
 #include "Robot.h"
 
-Robot::Robot(float x_, float y_, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_) : x(x_), y(y_), goalX(100.0f), goalY(50.0f), motors(mENA_, mIN1_, mIN2_, mIN3_, mIN4_, mENB_, mSTBY_), winch(wIN1_, wIN2_, wIN3_, wIN4_)
+Robot::Robot(float x_, float y_, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_) : x(x_), y(y_), goalX(0.0f), goalY(0.0f), motors(mENA_, mIN1_, mIN2_, mIN3_, mIN4_, mENB_, mSTBY_), winch(wIN1_, wIN2_, wIN3_, wIN4_)
 {
 
 }

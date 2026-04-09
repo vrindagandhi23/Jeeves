@@ -41,9 +41,16 @@ static SemaphoreHandle_t serialMutex = NULL;
 #define SERVO_PINL 18
 #define SERVO_PINR 19
 
+
+// Winch and Spool Pins
+#define WIN1 22
+#define WIN2 1
+#define WIN3 3
+#define WIN4 21
 // ----------------------------- Position queue (UWB → Motor) ------------------
 typedef struct {
   float x;
+  
   float y;
   uint8_t valid;  // 1 = fresh position, 0 = no fix yet
 } PositionMessage_t;
@@ -52,7 +59,7 @@ typedef struct {
 static QueueHandle_t positionQueue = NULL;
 
 // ----------------------------- Robot state (motor task) ----------------------
-Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY);
+Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY, WIN1, WIN2, WIN3, WIN4);
 
 // ----------------------------- Triangulation (from Anchor/Triangulation.ino) -
 std::vector<Anchor> anchors;
@@ -103,7 +110,7 @@ static void taskUWB(void* pvParameters) {
       else{
         if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
         Serial.print("Distance Failed: ");
-        Serial.println(i + 1);
+        Serial.println(i);
         if (serialMutex) xSemaphoreGive(serialMutex);
       }
       vTaskDelay(pdMS_TO_TICKS(5));
@@ -202,10 +209,11 @@ void setup() {
 
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
-  // anchors.push_back(Anchor(0, 0, "TAG1"));
-  anchors.push_back(Anchor(0, 0, "TAG2"));
-  anchors.push_back(Anchor(0, 1, "TAG3"));
-  anchors.push_back(Anchor(1, 0, "TAG4"));
+
+  anchors.push_back(Anchor(0, 0, "TAG1"));
+  anchors.push_back(Anchor(0, 114.3, "TAG2"));
+  anchors.push_back(Anchor(144.78, 0, "TAG3"));
+  anchors.push_back(Anchor(144.78, 114.3, "TAG4"));
 
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
@@ -230,11 +238,11 @@ void setup() {
     for (;;) delay(1000);
   }
 
-  ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
-  if (ok != pdPASS) {
-    Serial.println("FATAL: Motor task create failed");
-    for (;;) delay(1000);
-  }
+  // ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
+  // if (ok != pdPASS) {
+  //   Serial.println("FATAL: Motor task create failed");
+  //   for (;;) delay(1000);
+  // }
 
   Serial.println("AnchorRobot FreeRTOS: UWB + Motor tasks running.");
 }
