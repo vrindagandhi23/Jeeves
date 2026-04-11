@@ -21,8 +21,16 @@ bool triangulate(
     float ATA10 = 0.0f, ATA11 = 0.0f;
     float ATb0 = 0.0f, ATb1 = 0.0f;
 
+    int succesful = 0;
+
     for (int i = 1; i < n; i++) {
         float xi, yi;
+        if(!anchors[i].GetDistInitialize()){
+            continue;
+        }
+        else{
+            succesful++;
+        }
         anchors[i].GetPosition(xi, yi);
         float di = anchors[i].GetDistance();
 
@@ -42,6 +50,10 @@ bool triangulate(
 
         ATb0 += ax * bi;
         ATb1 += ay * bi;
+    }
+
+    if(succesful < 3){
+        return false;
     }
 
     // Invert 2×2 matrix

@@ -120,17 +120,18 @@ static void taskUWB(void* pvParameters) {
     
     float xRaw = 0.0f;
     float yRaw = 0.0f;
-    bool haveAllDistances = true;
-    for (int i = 0; i < anchors.size(); i++) {
-      if (!anchors[i].GetDistInitialize()) {
-        haveAllDistances = false;
-        break;
-      }
-    }
+
+    // bool haveAllDistances = true;
+    // for (int i = 0; i < anchors.size(); i++) {
+    //   if (!anchors[i].GetDistInitialize()) {
+    //     haveAllDistances = false;
+    //     break;
+    //   }
+    // }
     
     // Serial.println("Has all distances");
 
-    if (haveAllDistances && triangulate(anchors, xRaw, yRaw)) {
+    if (triangulate(anchors, xRaw, yRaw)) {
       TickType_t now = xTaskGetTickCount();
       float dtS = (lastPosTick == 0) ? 0.0f : ((float)(now - lastPosTick) / (float)configTICK_RATE_HZ);
       lastPosTick = now;
