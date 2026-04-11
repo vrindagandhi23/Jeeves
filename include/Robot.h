@@ -4,6 +4,13 @@
 #include "Motors.h"
 #include "Winch.h"
 
+enum class RobotState {
+  CALIBRATING,
+  TURNING,
+  PURSUING,
+  DONE
+};
+
 class Robot
 {
 private:
@@ -11,25 +18,38 @@ private:
   float y;
   float goalX;
   float goalY;
+
+  // State machine
+  RobotState state;
+  float heading;
+  bool calibStarted;
+  float calibStartX, calibStartY;
+  uint32_t calibStartTime;
+
   Motors motors;
   Winch winch;
+
 public:
-    // anchor initialization
   Robot(float x, float y, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_);
-  // 
+
   void updatePosition(float x_, float y_);
-  // pursue goalX, goalY
+
+  // Set goal position
+  void setGoal(float gx, float gy);
+
+  // Main control loop — call every tick
   void pursueTarget();
-  // pursue x, y
-  void pursueTarget(float goalX, float goalY);
-  
-// returns robot position by reference
+
+  // Returns robot position by reference
   void GetPosition(float &x, float &y) const;
-// returns raw anchor distance
+
+  // Returns raw anchor distance
   float GetRawDistance() const;
-// returns filtered anchor distance
+
+  // Returns filtered anchor distance
   float GetDistance() const;
-// returns whether a filtered distance has been initialized
+
+  // Returns whether a filtered distance has been initialized
   bool GetDistInitialize() const;
 };
 
