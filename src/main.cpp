@@ -33,7 +33,7 @@ static SemaphoreHandle_t serialMutex = NULL;
 #define IN2 27
 #define IN3 26
 #define IN4 25
-#define ENB 32
+#define ENB 33
 #define STBY 32 // not used
 
 // SERVO PINS 
@@ -219,6 +219,9 @@ void setup() {
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
 
+  servoL.attach(SERVO_PINL);  // attaches the servo on pin 18 to the servo object
+  servoR.attach(SERVO_PINR);  // attaches the servo on pin 19
+
   for (pos = 180; pos >= 90; pos -= 1) { // goes from 180 degrees to 0 degrees
     servoL.write(pos);    // tell servo to go to position in variable 'pos'
     servoR.write(pos);
@@ -239,11 +242,11 @@ void setup() {
     for (;;) delay(1000);
   }
 
-  // ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
-  // if (ok != pdPASS) {
-  //   Serial.println("FATAL: Motor task create failed");
-  //   for (;;) delay(1000);
-  // }
+  ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
+  if (ok != pdPASS) {
+    Serial.println("FATAL: Motor task create failed");
+    for (;;) delay(1000);
+  }
 
   Serial.println("AnchorRobot FreeRTOS: UWB + Motor tasks running.");
 }
