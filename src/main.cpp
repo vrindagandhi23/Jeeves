@@ -34,14 +34,10 @@ HardwareSerial RYUW(2);
 #define SERVO_PINL 18
 #define SERVO_PINR 19
 
-// Pin 19 = R, pin 18 = L. Rest angles differ; lift couples them (R down, L up by same step) so both wheels rise.
-static constexpr int SERVO_REST_R         = 85;
-static constexpr int SERVO_REST_L         = 80;
+// Pin 19 = R, pin 18 = L. R sweeps 75°→0°→75° to lift; L mirrored (180−r) so both wheels move together.
+static constexpr int SERVO_WIGGLE_REST_R = 75;
+static constexpr int SERVO_WIGGLE_REST_L = 180 - SERVO_WIGGLE_REST_R;
 static constexpr int SERVO_LIFT_MIN_DEG  = 0;
-static constexpr int SERVO_LIFT_TRAVEL =
-    (SERVO_REST_R - SERVO_LIFT_MIN_DEG) < (180 - SERVO_REST_L)
-        ? (SERVO_REST_R - SERVO_LIFT_MIN_DEG)
-        : (180 - SERVO_REST_L);
 
 #define WIN1 22
 #define WIN2 1
@@ -152,16 +148,14 @@ static void alignHeadingToGoalBearing() {
 }
 
 static void servoWiggle() {
-  for (int i = 0; i <= SERVO_LIFT_TRAVEL; i++) {
-    int r = SERVO_REST_R - i;
-    int l = SERVO_REST_L + i;
+  for (int r = SERVO_WIGGLE_REST_R; r >= SERVO_LIFT_MIN_DEG; r--) {
+    int l = 180 - r;
     servoR.write(constrain(r, 0, 180));
     servoL.write(constrain(l, 0, 180));
     delay(8);
   }
-  for (int i = SERVO_LIFT_TRAVEL; i >= 0; i--) {
-    int r = SERVO_REST_R - i;
-    int l = SERVO_REST_L + i;
+  for (int r = SERVO_LIFT_MIN_DEG; r <= SERVO_WIGGLE_REST_R; r++) {
+    int l = 180 - r;
     servoR.write(constrain(r, 0, 180));
     servoL.write(constrain(l, 0, 180));
     delay(8);
@@ -195,8 +189,8 @@ void setup() {
     Serial.print(" R=");
     Serial.println(chR);
   }
-  servoR.write(SERVO_REST_R);
-  servoL.write(SERVO_REST_L);
+  servoR.write(SERVO_WIGGLE_REST_R);
+  servoL.write(SERVO_WIGGLE_REST_L);
   delay(300);
 
   float gx = 0.0f;
