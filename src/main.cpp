@@ -34,6 +34,15 @@ HardwareSerial RYUW(2);
 #define SERVO_PINL 18
 #define SERVO_PINR 19
 
+// Pin 19 = R, pin 18 = L. Rest angles differ; lift couples them (R down, L up by same step) so both wheels rise.
+static constexpr int SERVO_REST_R         = 85;
+static constexpr int SERVO_REST_L         = 80;
+static constexpr int SERVO_LIFT_MIN_DEG  = 0;
+static constexpr int SERVO_LIFT_TRAVEL =
+    (SERVO_REST_R - SERVO_LIFT_MIN_DEG) < (180 - SERVO_REST_L)
+        ? (SERVO_REST_R - SERVO_LIFT_MIN_DEG)
+        : (180 - SERVO_REST_L);
+
 #define WIN1 22
 #define WIN2 1
 #define WIN3 3
@@ -47,8 +56,10 @@ static constexpr uint32_t BETWEEN_SAMPLE_MS    = 15;
 
 static constexpr float ARRIVAL_THRESHOLD_CM      = 5.0f;
 
-static constexpr uint32_t DRIVE_FORWARD_MS       = 2000;
-static constexpr int    DRIVE_FORWARD_DUTY       = 55;
+// Timed straight segment after alignment (and bench test forward run).
+static constexpr uint32_t DRIVE_FORWARD_MS       = 2000;  // 2 seconds
+static constexpr int    DRIVE_FORWARD_DUTY       = 160;
+static constexpr uint32_t MOTOR_STOP_TO_WIGGLE_MS = 280;  // pause after drive before servos move
 
 static constexpr int    TURN_PWM                 = 200;
 static constexpr uint32_t TURN_SLICE_MS          = 35;
@@ -141,15 +152,19 @@ static void alignHeadingToGoalBearing() {
 }
 
 static void servoWiggle() {
-  for (int ang = 90; ang <= 120; ang++) {
-    servoL.write(ang);
-    servoR.write(ang);
-    delay(12);
+  for (int i = 0; i <= SERVO_LIFT_TRAVEL; i++) {
+    int r = SERVO_REST_R - i;
+    int l = SERVO_REST_L + i;
+    servoR.write(constrain(r, 0, 180));
+    servoL.write(constrain(l, 0, 180));
+    delay(8);
   }
-  for (int ang = 120; ang >= 90; ang--) {
-    servoL.write(ang);
-    servoR.write(ang);
-    delay(12);
+  for (int i = SERVO_LIFT_TRAVEL; i >= 0; i--) {
+    int r = SERVO_REST_R - i;
+    int l = SERVO_REST_L + i;
+    servoR.write(constrain(r, 0, 180));
+    servoL.write(constrain(l, 0, 180));
+    delay(8);
   }
 }
 
@@ -169,10 +184,20 @@ void setup() {
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
 
-  servoL.attach(SERVO_PINL);
-  servoR.attach(SERVO_PINR);
-  servoL.write(90);
-  servoR.write(90);
+  // Attach servos after motor LEDC init (Robot global ctor) so library picks low
+  // channels; motors use channels 8/9 (see Motors.h) to avoid overlap.
+  // attach() returns LEDC channel index; 0 is valid — do not treat as boolean.
+  int chL = servoL.attach(SERVO_PINL, 500, 2400);
+  int chR = servoR.attach(SERVO_PINR, 500, 2400);
+  if (chL < 0 || chR < 0) {
+    Serial.print("WARN: servo attach channel L=");
+    Serial.print(chL);
+    Serial.print(" R=");
+    Serial.println(chR);
+  }
+  servoR.write(SERVO_REST_R);
+  servoL.write(SERVO_REST_L);
+  delay(300);
 
   float gx = 0.0f;
   float gy = 0.0f;
@@ -188,16 +213,16 @@ void setup() {
 // ----------------------------- loop ------------------------------------------
 void loop() {
   if (kMotorForwardBenchTest) {
-    static bool benchDone = false;
-    if (!benchDone) {
-      benchDone = true;
-      Serial.println("Bench: motor forward 2s (navigation disabled).");
-      robot.motorsForward(DRIVE_FORWARD_DUTY);
-      delay(DRIVE_FORWARD_MS);
-      robot.motorsStop();
-      Serial.println("Bench: stop.");
-    }
-    delay(500);
+    Serial.println("Bench: motor forward 2s (navigation disabled).");
+    uint32_t t0 = millis();
+    robot.motorsForward(DRIVE_FORWARD_DUTY);
+    delay(DRIVE_FORWARD_MS);
+    robot.motorsStop();
+    Serial.print("Bench: stop. Actual run ms=");
+    Serial.println(millis() - t0);
+    delay(MOTOR_STOP_TO_WIGGLE_MS);
+    servoWiggle();
+    delay(1000);
     return;
   }
 
@@ -239,6 +264,7 @@ void loop() {
   robot.motorsForward(DRIVE_FORWARD_DUTY);
   delay(DRIVE_FORWARD_MS);
   robot.motorsStop();
+  delay(MOTOR_STOP_TO_WIGGLE_MS);
 
   servoWiggle();
   delay(1000);

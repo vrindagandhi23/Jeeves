@@ -8,8 +8,10 @@ struct Motors{
     // ESP32 PWM (LEDC) configuration
     static constexpr uint32_t PWM_FREQ_HZ = 20000; // quiet-ish
     static constexpr uint8_t PWM_RES_BITS = 8;     // duty 0..255
-    static constexpr int PWM_CH_A = 0;
-    static constexpr int PWM_CH_B = 1;
+    // Use high LEDC channels so ESP32Servo (usually 0–3 on attach order) does not
+    // steal the same channels as ENA/ENB and kill motor PWM or a second servo.
+    static constexpr int PWM_CH_A = 8;
+    static constexpr int PWM_CH_B = 9;
 
     Motors(int ENA_, int IN1_, int IN2_, int IN3_, int IN4_, int ENB_, int STBY_)
       : ENA(ENA_), IN1(IN1_), IN2(IN2_), IN3(IN3_), IN4(IN4_), ENB(ENB_), STBY(STBY_) {
