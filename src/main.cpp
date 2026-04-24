@@ -50,21 +50,24 @@ static constexpr int   TRIANGULATION_MIN_GOOD    = 5;
 static constexpr uint32_t POLL_DELAY_MS        = 5;
 static constexpr uint32_t BETWEEN_SAMPLE_MS    = 15;
 
-static constexpr float ARRIVAL_THRESHOLD_CM      = 5.0f;
+static constexpr float ARRIVAL_THRESHOLD_CM      = 20.0f;
 
 // Timed straight segment after alignment (and bench test forward run).
-static constexpr uint32_t DRIVE_FORWARD_MS       = 2000;  // 2 seconds
-static constexpr int    DRIVE_FORWARD_DUTY       = 160;
+static constexpr uint32_t DRIVE_FORWARD_MS       = 500;  // 1 seconds
+static constexpr int    DRIVE_FORWARD_DUTY       = 200;
 static constexpr uint32_t MOTOR_STOP_TO_WIGGLE_MS = 280;  // pause after drive before servos move
 
-static constexpr int    TURN_PWM                 = 200;
+static constexpr int    TURN_PWM                 = 220;
 static constexpr uint32_t TURN_SLICE_MS          = 35;
 static constexpr float  TURN_HEADING_STEP_RAD    = 0.028f;
 static constexpr float  TURN_ANGLE_TOL_RAD       = 0.22f;
 static constexpr int    TURN_MAX_SLICES          = 450;
 
 // Set true for bench test: no UWB, drive forward 2s once then idle. Set false for normal navigation.
-static constexpr bool kMotorForwardBenchTest = true;
+static constexpr bool kMotorForwardBenchTest = false;
+
+// Hard-coded goal: TAG2 is anchors[1] (must match anchors.push_back order in setup()).
+static constexpr int GOAL_TAG_INDEX = 1;
 
 // ----------------------------- Robot & anchors --------------------------------
 Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY, WIN1, WIN2, WIN3, WIN4);
@@ -152,13 +155,13 @@ static void servoWiggle() {
     int l = 180 - r;
     servoR.write(constrain(r, 0, 180));
     servoL.write(constrain(l, 0, 180));
-    delay(8);
+    delay(16);
   }
   for (int r = SERVO_LIFT_MIN_DEG; r <= SERVO_WIGGLE_REST_R; r++) {
     int l = 180 - r;
     servoR.write(constrain(r, 0, 180));
     servoL.write(constrain(l, 0, 180));
-    delay(8);
+    delay(16);
   }
 }
 
@@ -170,10 +173,10 @@ void setup() {
 
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
-  anchors.push_back(Anchor(0, 0, "TAG1"));
-  anchors.push_back(Anchor(0, 114.3, "TAG2"));
-  anchors.push_back(Anchor(144.78, 0, "TAG3"));
-  anchors.push_back(Anchor(144.78, 114.3, "TAG4"));
+  anchors.push_back(Anchor(101.6, 0, "TAG1"));
+  anchors.push_back(Anchor(116.8, 101.6, "TAG2"));
+  anchors.push_back(Anchor(0, 0, "TAG3"));
+  anchors.push_back(Anchor(0, 116.8, "TAG4"));
 
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
@@ -195,10 +198,10 @@ void setup() {
 
   float gx = 0.0f;
   float gy = 0.0f;
-  anchors[0].GetPosition(gx, gy);
+  anchors[GOAL_TAG_INDEX].GetPosition(gx, gy);
   robot.setGoal(gx, gy);
 
-  Serial.print("Goal (cm): ");
+  Serial.print("Goal TAG2 (cm): ");
   Serial.print(gx);
   Serial.print(", ");
   Serial.println(gy);

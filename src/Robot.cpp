@@ -89,7 +89,7 @@ void Robot::pursueTarget() {
         Serial.println("Calibrating: driving forward to derive heading...");
       }
 
-      motors.forward(50);
+      motors.forward(150);
 
       if (millis() - calibStartTime > 1000) {
         float dx = x - calibStartX;
@@ -129,9 +129,9 @@ void Robot::pursueTarget() {
         Serial.println("Aligned. Pursuing target.");
         state = RobotState::PURSUING;
       } else if (angleError > 0) {
-        motors.rightTurn(200);
+        motors.rightTurn(220);
       } else {
-        motors.leftTurn(200);
+        motors.leftTurn(220);
       }
       break;
     }
@@ -156,7 +156,7 @@ void Robot::pursueTarget() {
         return;
       }
 
-      motors.forward(50);
+      motors.forward(150);
       break;
     }
 
