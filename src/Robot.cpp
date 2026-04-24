@@ -24,6 +24,56 @@ void Robot::GetPosition(float &x_, float &y_) const {
   y_ = this->y;
 }
 
+void Robot::setGoal(float gx, float gy) {
+  goalX = gx;
+  goalY = gy;
+}
+
+void Robot::getGoal(float &gx, float &gy) const {
+  gx = goalX;
+  gy = goalY;
+}
+
+void Robot::setHeading(float rad) {
+  heading = rad;
+}
+
+float Robot::getHeading() const {
+  return heading;
+}
+
+float Robot::bearingToGoal() const {
+  float dx = goalX - x;
+  float dy = goalY - y;
+  return atan2f(dy, dx);
+}
+
+void Robot::initHeadingFromBearingToGoal() {
+  heading = bearingToGoal();
+}
+
+void Robot::adjustHeading(float deltaRad) {
+  heading += deltaRad;
+  while (heading > PI) heading -= 2.0f * PI;
+  while (heading < -PI) heading += 2.0f * PI;
+}
+
+void Robot::motorsStop() {
+  motors.stopMotors();
+}
+
+void Robot::motorsForward(int duty) {
+  motors.forward(duty);
+}
+
+void Robot::motorsLeftTurn(int duty) {
+  motors.leftTurn(duty);
+}
+
+void Robot::motorsRightTurn(int duty) {
+  motors.rightTurn(duty);
+}
+
 // ---------------------- Control Loop -------------------------------
 void Robot::pursueTarget() {
 
@@ -39,7 +89,7 @@ void Robot::pursueTarget() {
         Serial.println("Calibrating: driving forward to derive heading...");
       }
 
-      motors.forward(0.05f);
+      motors.forward(50);
 
       if (millis() - calibStartTime > 1000) {
         float dx = x - calibStartX;
@@ -106,7 +156,7 @@ void Robot::pursueTarget() {
         return;
       }
 
-      motors.forward(0.05f);
+      motors.forward(50);
       break;
     }
 

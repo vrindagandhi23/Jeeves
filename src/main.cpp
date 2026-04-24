@@ -1,31 +1,26 @@
 // =============================================================================
-// Bed-Making Robot: Anchor with UWB Triangulation + Motor Control
-// FreeRTOS architecture: Task_UWB → Position Queue → Task_Motor
-// Interrupts used only for timing/notifications; heavy work in tasks.
+// Bed-Making Robot: Anchor with UWB triangulation + motors (no RTOS).
+// State: average N fixes -> turn toward goal using tracked heading -> timed
+// drive -> servo motion -> repeat until within arrival distance.
 // =============================================================================
 
 #include <Arduino.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
+#include <cmath>
 #include "Robot.h"
 #include "Anchor.h"
 #include "Triangulation.h"
 #include <vector>
 #include <ESP32Servo.h>
 
+#ifndef PI
+#define PI 3.14159265358979323846f
+#endif
+
 // ----------------------------- UWB (Serial) ----------------------------------
 #define TXD2 17
 #define RXD2 16
 #define RYUW_NRST 4
 HardwareSerial RYUW(2);
-
-// ----------------------------- Serial mutexes -------------------------------
-// Guard UART access just in case more than one task ever touches these ports.
-static SemaphoreHandle_t ryuwMutex = NULL;
-static SemaphoreHandle_t serialMutex = NULL;
-
 
 // ----------------------------- Motor pins (TB6612FNG) ------------------------
 #define ENA 12
@@ -34,182 +29,134 @@ static SemaphoreHandle_t serialMutex = NULL;
 #define IN3 26
 #define IN4 25
 #define ENB 33
-#define STBY 32 // not used
+#define STBY 32
 
-// SERVO PINS 
-//wheels in the back
 #define SERVO_PINL 18
 #define SERVO_PINR 19
 
-
-// Winch and Spool Pins
 #define WIN1 22
 #define WIN2 1
 #define WIN3 3
 #define WIN4 21
-// ----------------------------- Position queue (UWB → Motor) ------------------
-typedef struct {
-  float x;
-  
-  float y;
-  uint8_t valid;  // 1 = fresh position, 0 = no fix yet
-} PositionMessage_t;
 
-#define POSITION_QUEUE_LEN  1
-static QueueHandle_t positionQueue = NULL;
+// ----------------------------- Navigation tuning ------------------------------
+static constexpr int   TRIANGULATION_SAMPLES     = 10;
+static constexpr int   TRIANGULATION_MIN_GOOD    = 5;
+static constexpr uint32_t POLL_DELAY_MS        = 5;
+static constexpr uint32_t BETWEEN_SAMPLE_MS    = 15;
 
-// ----------------------------- Robot state (motor task) ----------------------
+static constexpr float ARRIVAL_THRESHOLD_CM      = 5.0f;
+
+static constexpr uint32_t DRIVE_FORWARD_MS       = 2000;
+static constexpr int    DRIVE_FORWARD_DUTY       = 55;
+
+static constexpr int    TURN_PWM                 = 200;
+static constexpr uint32_t TURN_SLICE_MS          = 35;
+static constexpr float  TURN_HEADING_STEP_RAD    = 0.028f;
+static constexpr float  TURN_ANGLE_TOL_RAD       = 0.22f;
+static constexpr int    TURN_MAX_SLICES          = 450;
+
+// ----------------------------- Robot & anchors --------------------------------
 Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY, WIN1, WIN2, WIN3, WIN4);
-
-// ----------------------------- Triangulation (from Anchor/Triangulation.ino) -
 std::vector<Anchor> anchors;
 
-
- 
-Servo servoL;  // create servo object to control a servo
+Servo servoL;
 Servo servoR;
- 
 
-int pos = 0;    // variable to store the servo position
+static bool gSyncedHeadingFromFirstFix = false;
 
-// ----------------------------- Simple stabilization --------------------------
-// Filter distances first (reduces jitter before triangulation), then filter (x,y),
-// and reject physically-impossible jumps.
-bool posInit = false;
-static TickType_t lastPosTick = 0;
+static float wrapPi(float a) {
+  while (a > PI) a -= 2.0f * PI;
+  while (a < -PI) a += 2.0f * PI;
+  return a;
+}
 
-static constexpr float POS_ALPHA  = 0.20f;     // 0..1
-static constexpr float MAX_SPEED_CM_S = 120.0f; // used for jump rejection
-static constexpr float JUMP_MARGIN_CM = 15.0f;  // extra allowance on top of speed gate
-
-// ----------------------------- Task: UWB + Triangulation ---------------------
-// Lower priority; runs triangulation and sends latest position to queue.
-// Interrupts (if added later): use only to set a flag or give a semaphore;
-// this task does all UWB read + triangulation so ISRs stay short.
-static void taskUWB(void* pvParameters) {
-  (void)pvParameters;
-  PositionMessage_t msg = { .x = 0, .y = 0, .valid = 0 };
-
-  for (;;) {
-    for (int i = 0; i < anchors.size(); i++) {
-      bool ok = false;
-      if (ryuwMutex) xSemaphoreTake(ryuwMutex, portMAX_DELAY);
-      ok = anchors[i].PollDistance(RYUW);
-      if (ryuwMutex) xSemaphoreGive(ryuwMutex);
-
-      if(ok){
-        if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
-        Serial.println(i);
-        Serial.print("Distance Raw (float): ");
-        Serial.println(anchors[i].GetRawDistance());
-
-        Serial.print("Distance Filtered (float): ");
-        Serial.println(anchors[i].GetDistance());
-        if (serialMutex) xSemaphoreGive(serialMutex);
-      }
-      else{
-        if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
-        Serial.print("Distance Failed: ");
-        Serial.println(i);
-        if (serialMutex) xSemaphoreGive(serialMutex);
-      }
-      vTaskDelay(pdMS_TO_TICKS(5));
-    }
-
-    // if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
-    
-    float xRaw = 0.0f;
-    float yRaw = 0.0f;
-
-    // bool haveAllDistances = true;
-    // for (int i = 0; i < anchors.size(); i++) {
-    //   if (!anchors[i].GetDistInitialize()) {
-    //     haveAllDistances = false;
-    //     break;
-    //   }
-    // }
-    
-    // Serial.println("Has all distances");
-
-    if (triangulate(anchors, xRaw, yRaw)) {
-      TickType_t now = xTaskGetTickCount();
-      float dtS = (lastPosTick == 0) ? 0.0f : ((float)(now - lastPosTick) / (float)configTICK_RATE_HZ);
-      lastPosTick = now;
-
-      float posXFilt, posYFilt;
-      if (!posInit) {   
-        posXFilt = xRaw;
-        posYFilt = yRaw;
-        robot.updatePosition(xRaw, yRaw);
-        posInit = true;
-      } else {
-        robot.GetPosition(posXFilt, posYFilt);
-        float dx = xRaw - posXFilt;
-        float dy = yRaw - posYFilt;
-        float step = sqrtf(dx * dx + dy * dy);
-
-        // Serial.print("step ");
-        // Serial.println(step);
-
-        // Gate based on plausible max step given time elapsed
-        float maxStep = JUMP_MARGIN_CM;
-        if (dtS > 0.0f) {
-          maxStep += MAX_SPEED_CM_S * dtS;
-        } else {
-          maxStep += 30.0f; // first step after init: be permissive
-        }
-
-        if (step <= maxStep) {
-          posXFilt = ema(posXFilt, xRaw, POS_ALPHA);
-          posYFilt = ema(posYFilt, yRaw, POS_ALPHA);
-          robot.updatePosition(posXFilt, posYFilt);
-        }
-        // else: reject this jump; keep filtered position as-is
-      }
-
-      msg.x = posXFilt;
-      msg.y = posYFilt;
-      msg.valid = 1;
-      xQueueOverwrite(positionQueue, &msg);
-    } else {
-      msg.valid = 0;
-      xQueueOverwrite(positionQueue, &msg);
-    }
-    // if (serialMutex) xSemaphoreGive(serialMutex);
-    vTaskDelay(pdMS_TO_TICKS(20));
+static void pollAllAnchorsOnce() {
+  for (size_t i = 0; i < anchors.size(); i++) {
+    anchors[i].PollDistance(RYUW);
+    delay(POLL_DELAY_MS);
   }
 }
 
-// ----------------------------- Task: Motor control ---------------------------
-// Highest priority; fixed rate; reads latest position and runs pursuit.
-static void taskMotor(void* pvParameters) {
-  (void)pvParameters;
-  const TickType_t period = pdMS_TO_TICKS(50);
-  PositionMessage_t msg = { .x = 0, .y = 0, .valid = 0 };
+// One full anchor poll + least-squares fix (raw triangulation, no EMA).
+static bool oneTriangulationSample(float &outX, float &outY) {
+  pollAllAnchorsOnce();
+  return triangulate(anchors, outX, outY);
+}
 
-  for (;;) {
-    if (xQueueReceive(positionQueue, &msg, 0) == pdTRUE && msg.valid) {
-      robot.updatePosition(msg.x, msg.y);
+static bool averageTriangulatedPosition(float &outX, float &outY) {
+  float sx = 0.0f;
+  float sy = 0.0f;
+  int n = 0;
+  for (int k = 0; k < TRIANGULATION_SAMPLES; k++) {
+    float xr = 0.0f;
+    float yr = 0.0f;
+    if (oneTriangulationSample(xr, yr)) {
+      sx += xr;
+      sy += yr;
+      n++;
     }
+    delay(BETWEEN_SAMPLE_MS);
+  }
+  if (n < TRIANGULATION_MIN_GOOD) {
+    return false;
+  }
+  outX = sx / (float)n;
+  outY = sy / (float)n;
+  return true;
+}
 
-    robot.pursueTarget();
-    vTaskDelay(period);
+static float distanceToGoal(float x, float y, float gx, float gy) {
+  float dx = gx - x;
+  float dy = gy - y;
+  return sqrtf(dx * dx + dy * dy);
+}
+
+static void alignHeadingToGoalBearing() {
+  const float targetBearing = robot.bearingToGoal();
+
+  for (int i = 0; i < TURN_MAX_SLICES; i++) {
+    float err = wrapPi(targetBearing - robot.getHeading());
+    if (fabsf(err) < TURN_ANGLE_TOL_RAD) {
+      robot.motorsStop();
+      return;
+    }
+    if (err > 0.0f) {
+      robot.motorsRightTurn(TURN_PWM);
+      delay(TURN_SLICE_MS);
+      robot.motorsStop();
+      robot.adjustHeading(TURN_HEADING_STEP_RAD);
+    } else {
+      robot.motorsLeftTurn(TURN_PWM);
+      delay(TURN_SLICE_MS);
+      robot.motorsStop();
+      robot.adjustHeading(-TURN_HEADING_STEP_RAD);
+    }
+  }
+  robot.motorsStop();
+  Serial.println("WARN: turn align stopped after max slices (tune TURN_HEADING_STEP_RAD / TURN_SLICE_MS).");
+}
+
+static void servoWiggle() {
+  for (int ang = 90; ang <= 120; ang++) {
+    servoL.write(ang);
+    servoR.write(ang);
+    delay(12);
+  }
+  for (int ang = 120; ang >= 90; ang--) {
+    servoL.write(ang);
+    servoR.write(ang);
+    delay(12);
   }
 }
 
 // ----------------------------- setup -----------------------------------------
 void setup() {
   Serial.begin(115200);
-  // Give Serial Monitor time to connect; bootloader runs at 74880 so open monitor at 115200 then press Reset
   delay(1500);
-  Serial.println("AnchorRobot starting...");
-
-  // Create mutexes before tasks start.
-  ryuwMutex = xSemaphoreCreateMutex();
-  serialMutex = xSemaphoreCreateMutex();
+  Serial.println("AnchorRobot starting (single-threaded nav)...");
 
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
-
 
   anchors.push_back(Anchor(0, 0, "TAG1"));
   anchors.push_back(Anchor(0, 114.3, "TAG2"));
@@ -219,52 +166,67 @@ void setup() {
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
 
-  servoL.attach(SERVO_PINL);  // attaches the servo on pin 18 to the servo object
-  servoR.attach(SERVO_PINR);  // attaches the servo on pin 19
+  servoL.attach(SERVO_PINL);
+  servoR.attach(SERVO_PINR);
+  servoL.write(90);
+  servoR.write(90);
 
-  for (pos = 180; pos >= 90; pos -= 1) { // goes from 180 degrees to 0 degrees
-    servoL.write(90);    // tell servo to go to position in variable 'pos'
-    servoR.write(90);
-    delay(15);             // waits 15ms for the servo to reach the position
-	}
+  float gx = 0.0f;
+  float gy = 0.0f;
+  anchors[0].GetPosition(gx, gy);
+  robot.setGoal(gx, gy);
 
-  // Single-slot queue: overwrite so motor always gets latest position
-  positionQueue = xQueueCreate(POSITION_QUEUE_LEN, sizeof(PositionMessage_t));
-  if (positionQueue == NULL) {
-    Serial.println("FATAL: position queue create failed");
-    for (;;) delay(1000);
-  }
-
-  BaseType_t ok;
-  ok = xTaskCreate(taskUWB, "UWB", 5120, NULL, 1, NULL);
-  if (ok != pdPASS) {
-    Serial.println("FATAL: UWB task create failed");
-    for (;;) delay(1000);
-  }
-
-  ok = xTaskCreate(taskMotor, "Motor", 3072, NULL, 2, NULL);  // higher priority
-  if (ok != pdPASS) {
-    Serial.println("FATAL: Motor task create failed");
-    for (;;) delay(1000);
-  }
-
-  Serial.println("AnchorRobot FreeRTOS: UWB + Motor tasks running.");
+  Serial.print("Goal (cm): ");
+  Serial.print(gx);
+  Serial.print(", ");
+  Serial.println(gy);
 }
 
 // ----------------------------- loop ------------------------------------------
-// FreeRTOS scheduler runs tasks; loop can be used for debug or low-priority work.
 void loop() {
-  vTaskDelay(pdMS_TO_TICKS(1000));
-  float robotX, robotY;
-  robot.GetPosition(robotX, robotY);
-  if (serialMutex) xSemaphoreTake(serialMutex, portMAX_DELAY);
-  Serial.print("Position: ");
-  Serial.print(robotX);
+  float gx = 0.0f;
+  float gy = 0.0f;
+  robot.getGoal(gx, gy);
+
+  float x = 0.0f;
+  float y = 0.0f;
+  if (!averageTriangulatedPosition(x, y)) {
+    Serial.println("Triangulation sample batch failed (not enough good fixes).");
+    delay(400);
+    return;
+  }
+
+  robot.updatePosition(x, y);
+
+  Serial.print("Avg position (cm): ");
+  Serial.print(x);
   Serial.print(", ");
-  Serial.println(robotY);
-  // Raw CSV line for TriangulationVisualizer.py ("x,y")
-  Serial.print(robotX);
+  Serial.println(y);
+
+  float dist = distanceToGoal(x, y, gx, gy);
+  if (dist < ARRIVAL_THRESHOLD_CM) {
+    robot.motorsStop();
+    Serial.println("Arrived within threshold. Holding.");
+    delay(1000);
+    return;
+  }
+
+  if (!gSyncedHeadingFromFirstFix) {
+    robot.initHeadingFromBearingToGoal();
+    gSyncedHeadingFromFirstFix = true;
+    Serial.println("Heading initialized from first fix (robot assumed aimed toward goal).");
+  }
+
+  alignHeadingToGoalBearing();
+
+  robot.motorsForward(DRIVE_FORWARD_DUTY);
+  delay(DRIVE_FORWARD_MS);
+  robot.motorsStop();
+
+  servoWiggle();
+
+  Serial.print("CSV ");
+  Serial.print(x);
   Serial.print(",");
-  Serial.println(robotY);
-  if (serialMutex) xSemaphoreGive(serialMutex);
+  Serial.println(y);
 }

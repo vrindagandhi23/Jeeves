@@ -36,6 +36,19 @@ public:
 
   // Set goal position
   void setGoal(float gx, float gy);
+  void getGoal(float &gx, float &gy) const;
+
+  // Heading (world radians, same convention as atan2(dy,dx) to goal).
+  void setHeading(float rad);
+  float getHeading() const;
+  void initHeadingFromBearingToGoal();
+  float bearingToGoal() const;
+  void adjustHeading(float deltaRad);
+
+  void motorsStop();
+  void motorsForward(int duty);
+  void motorsLeftTurn(int duty);
+  void motorsRightTurn(int duty);
 
   // Main control loop — call every tick
   void pursueTarget();
