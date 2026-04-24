@@ -45,7 +45,7 @@ static constexpr int SERVO_LIFT_MIN_DEG  = 0;
 #define WIN4 21
 
 // ----------------------------- Navigation tuning ------------------------------
-static constexpr int   TRIANGULATION_SAMPLES     = 15;
+static constexpr int   TRIANGULATION_SAMPLES     = 10;
 static constexpr int   TRIANGULATION_MIN_GOOD    = 5;
 static constexpr uint32_t POLL_DELAY_MS        = 5;
 static constexpr uint32_t BETWEEN_SAMPLE_MS    = 15;
