@@ -56,6 +56,9 @@ static constexpr float  TURN_HEADING_STEP_RAD    = 0.028f;
 static constexpr float  TURN_ANGLE_TOL_RAD       = 0.22f;
 static constexpr int    TURN_MAX_SLICES          = 450;
 
+// Set true for bench test: no UWB, drive forward 2s once then idle. Set false for normal navigation.
+static constexpr bool kMotorForwardBenchTest = true;
+
 // ----------------------------- Robot & anchors --------------------------------
 Robot robot(0.0f, 0.0f, ENA, IN1, IN2, IN3, IN4, ENB, STBY, WIN1, WIN2, WIN3, WIN4);
 std::vector<Anchor> anchors;
@@ -184,6 +187,20 @@ void setup() {
 
 // ----------------------------- loop ------------------------------------------
 void loop() {
+  if (kMotorForwardBenchTest) {
+    static bool benchDone = false;
+    if (!benchDone) {
+      benchDone = true;
+      Serial.println("Bench: motor forward 2s (navigation disabled).");
+      robot.motorsForward(DRIVE_FORWARD_DUTY);
+      delay(DRIVE_FORWARD_MS);
+      robot.motorsStop();
+      Serial.println("Bench: stop.");
+    }
+    delay(500);
+    return;
+  }
+
   float gx = 0.0f;
   float gy = 0.0f;
   robot.getGoal(gx, gy);
@@ -224,6 +241,7 @@ void loop() {
   robot.motorsStop();
 
   servoWiggle();
+  delay(1000);
 
   Serial.print("CSV ");
   Serial.print(x);
