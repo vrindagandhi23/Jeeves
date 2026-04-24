@@ -45,12 +45,12 @@ static constexpr int SERVO_LIFT_MIN_DEG  = 0;
 #define WIN4 21
 
 // ----------------------------- Navigation tuning ------------------------------
-static constexpr int   TRIANGULATION_SAMPLES     = 10;
+static constexpr int   TRIANGULATION_SAMPLES     = 15;
 static constexpr int   TRIANGULATION_MIN_GOOD    = 5;
 static constexpr uint32_t POLL_DELAY_MS        = 5;
 static constexpr uint32_t BETWEEN_SAMPLE_MS    = 15;
 
-static constexpr float ARRIVAL_THRESHOLD_CM      = 20.0f;
+static constexpr float ARRIVAL_THRESHOLD_CM      = 30.0f;
 
 // Timed straight segment after alignment (and bench test forward run).
 static constexpr uint32_t DRIVE_FORWARD_MS       = 500;  // 1 seconds
@@ -58,7 +58,7 @@ static constexpr int    DRIVE_FORWARD_DUTY       = 200;
 static constexpr uint32_t MOTOR_STOP_TO_WIGGLE_MS = 280;  // pause after drive before servos move
 
 static constexpr int    TURN_PWM                 = 220;
-static constexpr uint32_t TURN_SLICE_MS          = 35;
+static constexpr uint32_t TURN_SLICE_MS          = 10;
 static constexpr float  TURN_HEADING_STEP_RAD    = 0.028f;
 static constexpr float  TURN_ANGLE_TOL_RAD       = 0.22f;
 static constexpr int    TURN_MAX_SLICES          = 450;
@@ -78,6 +78,8 @@ Servo servoR;
 
 static bool gSyncedHeadingFromFirstFix = false;
 
+static bool arrive = false;
+
 static float wrapPi(float a) {
   while (a > PI) a -= 2.0f * PI;
   while (a < -PI) a += 2.0f * PI;
@@ -87,7 +89,7 @@ static float wrapPi(float a) {
 static void pollAllAnchorsOnce() {
   for (size_t i = 0; i < anchors.size(); i++) {
     anchors[i].PollDistance(RYUW);
-    delay(POLL_DELAY_MS);
+    // delay(POLL_DELAY_MS);
   }
 }
 
@@ -102,6 +104,7 @@ static bool averageTriangulatedPosition(float &outX, float &outY) {
   float sy = 0.0f;
   int n = 0;
   for (int k = 0; k < TRIANGULATION_SAMPLES; k++) {
+    Serial.println(k);
     float xr = 0.0f;
     float yr = 0.0f;
     if (oneTriangulationSample(xr, yr)) {
@@ -109,7 +112,7 @@ static bool averageTriangulatedPosition(float &outX, float &outY) {
       sy += yr;
       n++;
     }
-    delay(BETWEEN_SAMPLE_MS);
+    // delay(BETWEEN_SAMPLE_MS);
   }
   if (n < TRIANGULATION_MIN_GOOD) {
     return false;
@@ -222,52 +225,69 @@ void loop() {
     delay(1000);
     return;
   }
+  if(!arrive){
+    float gx = 0.0f;
+    float gy = 0.0f;
+    robot.getGoal(gx, gy);
 
-  float gx = 0.0f;
-  float gy = 0.0f;
-  robot.getGoal(gx, gy);
+    float x = 0.0f;
+    float y = 0.0f;
+    if (!averageTriangulatedPosition(x, y)) {
+      Serial.println("Triangulation sample batch failed (not enough good fixes).");
+      delay(400);
+      return;
+    }
 
-  float x = 0.0f;
-  float y = 0.0f;
-  if (!averageTriangulatedPosition(x, y)) {
-    Serial.println("Triangulation sample batch failed (not enough good fixes).");
-    delay(400);
-    return;
-  }
+    float rx, ry;
+    robot.GetPosition(rx, ry);
+    float dx = x - rx;
+    float dy = y - ry;
+    float heading = atan2f(dy, dx);
+    robot.adjustHeading(heading);
 
-  robot.updatePosition(x, y);
+    robot.updatePosition(x, y);
 
-  Serial.print("Avg position (cm): ");
-  Serial.print(x);
-  Serial.print(", ");
-  Serial.println(y);
+    Serial.print("Avg position (cm): ");
+    Serial.print(x);
+    Serial.print(", ");
+    Serial.println(y);
 
-  float dist = distanceToGoal(x, y, gx, gy);
-  if (dist < ARRIVAL_THRESHOLD_CM) {
+    float dist = distanceToGoal(x, y, gx, gy);
+    Serial.print("dist: ");
+    Serial.println(dist);
+    if (dist < ARRIVAL_THRESHOLD_CM) {
+      robot.motorsStop();
+      Serial.println("Arrived within threshold. Holding.");
+      delay(1000);
+      arrive = true;
+      return;
+    }
+
+    if (!gSyncedHeadingFromFirstFix) {
+      robot.initHeadingFromBearingToGoal();
+      gSyncedHeadingFromFirstFix = true;
+      Serial.println("Heading initialized from first fix (robot assumed aimed toward goal).");
+    }
+
+    alignHeadingToGoalBearing();
+
+    Serial.print("Heading: ");
+    Serial.println(robot.getHeading());
+
+    Serial.println("Bearing to goal: ");
+    Serial.println(robot.bearingToGoal());
+
+    robot.motorsForward(DRIVE_FORWARD_DUTY);
+    delay(DRIVE_FORWARD_MS);
     robot.motorsStop();
-    Serial.println("Arrived within threshold. Holding.");
+    delay(MOTOR_STOP_TO_WIGGLE_MS);
+
+    servoWiggle();
     delay(1000);
-    return;
+
+    // Serial.print("CSV ");
+    // Serial.print(x);
+    // Serial.print(",");
+    // Serial.println(y);
   }
-
-  if (!gSyncedHeadingFromFirstFix) {
-    robot.initHeadingFromBearingToGoal();
-    gSyncedHeadingFromFirstFix = true;
-    Serial.println("Heading initialized from first fix (robot assumed aimed toward goal).");
-  }
-
-  alignHeadingToGoalBearing();
-
-  robot.motorsForward(DRIVE_FORWARD_DUTY);
-  delay(DRIVE_FORWARD_MS);
-  robot.motorsStop();
-  delay(MOTOR_STOP_TO_WIGGLE_MS);
-
-  servoWiggle();
-  delay(1000);
-
-  Serial.print("CSV ");
-  Serial.print(x);
-  Serial.print(",");
-  Serial.println(y);
 }

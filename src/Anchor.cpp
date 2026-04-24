@@ -73,7 +73,7 @@ bool Anchor::PollDistance(HardwareSerial& RYUW){
       }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // vTaskDelay(pdMS_TO_TICKS(10));
   }
   return false;
 }
