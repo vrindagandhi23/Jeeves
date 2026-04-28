@@ -19,7 +19,7 @@ HardwareSerial RYUW(2);
 #define IN3 26
 #define IN4 25
 #define ENB 33
-#define STBY 32 // not used
+#define STBY 32
 
 // SERVO PINS 
 /* wheels in the back

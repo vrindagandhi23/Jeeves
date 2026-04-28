@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "Motors.h"
 #include "Winch.h"
+#include "MPU6050.h"
 
 enum class RobotState {
   CALIBRATING,
@@ -28,9 +29,11 @@ private:
 
   Motors motors;
   Winch winch;
+  MPU6050Sensor imu;
+  
 
 public:
-  Robot(float x, float y, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_);
+  Robot(float x, float y, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_, int IMU_INTERRUPT);
 
   void updatePosition(float x_, float y_);
 
@@ -40,7 +43,7 @@ public:
 
   // Heading (world radians, same convention as atan2(dy,dx) to goal).
   void setHeading(float rad);
-  float getHeading() const;
+  float getHeading();
   void initHeadingFromBearingToGoal();
   float bearingToGoal() const;
   void adjustHeading(float deltaRad);
@@ -64,6 +67,9 @@ public:
 
   // Returns whether a filtered distance has been initialized
   bool GetDistInitialize() const;
+
+  // initialize IMU
+  void initializeIMU();
 };
 
 #endif

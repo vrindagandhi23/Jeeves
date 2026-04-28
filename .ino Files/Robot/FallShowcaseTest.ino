@@ -2,12 +2,12 @@
 #include <math.h>
 
 // --------------------- Motor Pin Mapping (TB6612FNG) --------------------------
-#define ENA 14
-#define IN1 27
-#define IN2 26
-#define IN3 25
-#define IN4 33
-#define ENB 12     // you were still using ENB, so we must define it
+#define ENA 12
+#define IN1 14
+#define IN2 27
+#define IN3 26
+#define IN4 25
+#define ENB 33
 #define STBY 32
 
 // --------------------- Servo Pin Mapping -------------------------------------

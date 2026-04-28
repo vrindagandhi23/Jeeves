@@ -1,7 +1,7 @@
 #include "Robot.h"
 #include <math.h>
 
-Robot::Robot(float x_, float y_, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_)
+Robot::Robot(float x_, float y_, int mENA_, int mIN1_, int mIN2_, int mIN3_, int mIN4_, int mENB_, int mSTBY_, int wIN1_, int wIN2_, int wIN3_, int wIN4_, int IMU_INTERRUPT)
   : x(x_), y(y_), goalX(0.0f), goalY(0.0f),
     motors(mENA_, mIN1_, mIN2_, mIN3_, mIN4_, mENB_, mSTBY_),
     winch(wIN1_, wIN2_, wIN3_, wIN4_),
@@ -9,7 +9,8 @@ Robot::Robot(float x_, float y_, int mENA_, int mIN1_, int mIN2_, int mIN3_, int
     heading(0.0f),
     calibStarted(false),
     calibStartX(0.0f), calibStartY(0.0f),
-    calibStartTime(0)
+    calibStartTime(0),
+    imu(IMU_INTERRUPT)
 {
 }
 
@@ -38,8 +39,11 @@ void Robot::setHeading(float rad) {
   heading = rad;
 }
 
-float Robot::getHeading() const {
-  return heading;
+float Robot::getHeading(){
+  imu.update();
+  float a = imu.getYaw();
+  imu.update();
+  return a;
 }
 
 float Robot::bearingToGoal() const {
@@ -49,7 +53,7 @@ float Robot::bearingToGoal() const {
 }
 
 void Robot::initHeadingFromBearingToGoal() {
-  heading = bearingToGoal();
+  heading = 0;
 }
 
 void Robot::adjustHeading(float deltaRad) {
@@ -72,6 +76,10 @@ void Robot::motorsLeftTurn(int duty) {
 
 void Robot::motorsRightTurn(int duty) {
   motors.rightTurn(duty);
+}
+
+void Robot::initializeIMU(){
+  imu.begin();
 }
 
 // ---------------------- Control Loop -------------------------------

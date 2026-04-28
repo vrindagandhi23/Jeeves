@@ -9,9 +9,9 @@ class Winch{
     private:
         int StepperPins[4];
         int step_number;
-        void OneStep(bool dir);
     public:
         Winch(int IN1, int IN2, int IN3, int IN4);
+        void OneStep(bool dir);
         void turnDegrees(int angle);
         int getAngle();
 };

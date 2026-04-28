@@ -20,18 +20,26 @@ int tags;
 std::vector<float> distances;
 
 // ------------------------ Simple stabilization ------------------------
-// Smooth distances before triangulation, then smooth (x,y) output.
+// UWB Distances -> Median Filter ->  then smooth (x,y) output.
 static std::vector<float> distFilt;
 static std::vector<bool> distInit;
 static bool posInit = false;
 static float posXFilt = 0.0f;
 static float posYFilt = 0.0f;
+static std::vector<std::array<float, 3>> distWindow;
+static std::vector<int> distIndex;
 
 static const float DIST_ALPHA = 0.35f; // 0..1 (higher = more responsive)
 static const float POS_ALPHA  = 0.20f; // 0..1
 
 static float ema(float prev, float next, float alpha) {
   return prev + alpha * (next - prev);
+}
+
+static float median3(float a, float b, float c) {
+  if ((a <= b && b <= c) || (c <= b && b <= a)) return b;
+  if ((b <= a && a <= c) || (c <= a && a <= b)) return a;
+  return c;
 }
 
 // Performs 2D triangulation using least squares
@@ -125,6 +133,9 @@ void setup() {
   distFilt.assign(4, 0.0f);
   distInit.assign(4, false);
 
+  distWindow.assign(4, {0.0f, 0.0f, 0.0f});
+  distIndex.assign(4, 0);
+
   Serial.println("Listening for RYUW responses...");
 }
 
@@ -156,12 +167,35 @@ void loop() {
             // Convert to integer
             int distance = distanceStr.toInt();
             float dRaw = (float)distance;
+
+            // spike rejection
+            if (distInit[i] && fabs(dRaw - distFilt[i]) > 150.0f) {
+              // Ignore extreme spike
+              continue;
+            }
+
+            // --- Median filter window update ---
+            distWindow[i][distIndex[i]] = dRaw;
+            distIndex[i] = (distIndex[i] + 1) % 3;
+
+            // Only apply median after we have at least 3 samples
+            float dFiltered = dRaw;
+            if (distInit[i]) {
+              dFiltered = median3(
+                distWindow[i][0],
+                distWindow[i][1],
+                distWindow[i][2]
+              );
+            }
+
+            // --- EMA smoothing ---
             if (!distInit[i]) {
-              distFilt[i] = dRaw;
+              distFilt[i] = dFiltered;
               distInit[i] = true;
             } else {
-              distFilt[i] = ema(distFilt[i], dRaw, DIST_ALPHA);
+              distFilt[i] = ema(distFilt[i], dFiltered, DIST_ALPHA);
             }
+
             distances[i] = distFilt[i];
             Serial.print("Distance (int): ");
             Serial.println(distance);
