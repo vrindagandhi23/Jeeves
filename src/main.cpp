@@ -39,10 +39,10 @@ static constexpr int SERVO_WIGGLE_REST_R = 90;
 static constexpr int SERVO_WIGGLE_REST_L = 180 - SERVO_WIGGLE_REST_R;
 static constexpr int SERVO_LIFT_MIN_DEG  = 0;
 
-#define WIN1 36
-#define WIN2 39
-#define WIN3 34
-#define WIN4 35
+#define WIN1 26
+#define WIN2 23
+#define WIN3 5
+#define WIN4 15
 
 #define IMU_INTERRUPT 23
 
@@ -106,7 +106,7 @@ static bool averageTriangulatedPosition(float &outX, float &outY) {
   float sy = 0.0f;
   int n = 0;
   for (int k = 0; k < TRIANGULATION_SAMPLES; k++) {
-    Serial.println(k);
+    // Serial.println(k);
     float xr = 0.0f;
     float yr = 0.0f;
     if (oneTriangulationSample(xr, yr)) {
@@ -249,10 +249,13 @@ void setup() {
 
   RYUW.begin(115200, SERIAL_8N1, RXD2, TXD2);
 
-  anchors.push_back(Anchor(101.6, 0, "TAG1"));
-  anchors.push_back(Anchor(116.8, 101.6, "TAG2"));
+
+  // x: 50 inch
+  // y: 44 inch
+  anchors.push_back(Anchor(127, 0, "TAG1"));
+  anchors.push_back(Anchor(127, 111.76, "TAG2"));
   anchors.push_back(Anchor(0, 0, "TAG3"));
-  anchors.push_back(Anchor(0, 116.8, "TAG4"));
+  anchors.push_back(Anchor(0, 111.76, "TAG4"));
 
   pinMode(RYUW_NRST, OUTPUT);
   digitalWrite(RYUW_NRST, HIGH);
@@ -308,11 +311,11 @@ void loop() {
 
     float x = 0.0f;
     float y = 0.0f;
-    if (!averageTriangulatedPosition(x, y)) {
-      Serial.println("Triangulation sample batch failed (not enough good fixes).");
-      delay(400);
-      return;
-    }
+    // if (!averageTriangulatedPosition(x, y)) {
+    //   Serial.println("Triangulation sample batch failed (not enough good fixes).");
+    //   delay(400);
+    //   return;
+    // }
 
     // float rx, ry;
     // robot.GetPosition(rx, ry);
@@ -321,7 +324,7 @@ void loop() {
     // float heading = atan2f(dy, dx);
     // robot.adjustHeading(heading);
 
-    robot.updatePosition(x, y);
+    // robot.updatePosition(x, y);
 
     Serial.print("Avg position (cm): ");
     Serial.print(x);
@@ -345,9 +348,11 @@ void loop() {
       Serial.println("Heading initialized from first fix (robot assumed aimed toward goal).");
     }
 
+    robot.spinWinch();
+
     moveServoDown();
 
-    alignHeadingToGoalBearing();
+    // alignHeadingToGoalBearing();
 
     Serial.print("Heading: ");
     Serial.println(robot.getHeading());
@@ -356,7 +361,6 @@ void loop() {
     Serial.println(robot.bearingToGoal());
 
     driveStepTowardGoal();
-
 
     delay(1000);
 

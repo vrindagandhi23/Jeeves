@@ -72,7 +72,8 @@ bool Anchor::PollDistance(HardwareSerial& RYUW){
         }
       }
     }
-
+    Serial.print(id+" ");
+    Serial.println(distance);
     // vTaskDelay(pdMS_TO_TICKS(10));
   }
   return false;

@@ -5,18 +5,24 @@ Winch::Winch(int IN1, int IN2, int IN3, int IN4){
     StepperPins[1] = IN2;
     StepperPins[2] = IN3;
     StepperPins[3] = IN4;
+    step_number = 0;
+    for(int i = 0; i < 4; i++){
+        pinMode(StepperPins[i], OUTPUT);
+    }
 }
 
 void Winch::OneStep(bool dir){
+    int steps[4][4] = {
+        {1,0,1,0},
+        {0,1,1,0},
+        {0,1,0,1},
+        {1,0,0,1}
+    };
+
     for(int i = 0; i < 4; i++){
-        if(i == step_number){
-            digitalWrite(StepperPins[i], HIGH);
-        }
-        else{
-            digitalWrite(StepperPins[i], LOW);
-        }
+        digitalWrite(StepperPins[i], steps[step_number][i]);
     }
-    
+
     if(dir){
         step_number = (step_number + 1) % 4;
     }

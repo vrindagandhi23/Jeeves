@@ -82,6 +82,14 @@ void Robot::initializeIMU(){
   imu.begin();
 }
 
+void Robot::spinWinch(){
+  for(int i = 0; i < 360; i++){
+    // Serial.println("spinning");
+    winch.OneStep(false);
+    delay(10);
+  }
+}
+
 // ---------------------- Control Loop -------------------------------
 void Robot::pursueTarget() {
 

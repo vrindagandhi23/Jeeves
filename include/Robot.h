@@ -70,6 +70,9 @@ public:
 
   // initialize IMU
   void initializeIMU();
+
+  // winch spin
+  void spinWinch();
 };
 
 #endif

@@ -12,9 +12,18 @@ bool triangulate(
     // Serial.println("enough stuff");
 
     // Reference anchor
+    int ref = -1;
+    for (int i = 0; i < n; i++) {
+        if (anchors[i].GetDistInitialize()) {
+            ref = i;
+            break;
+        }
+    }
+    if (ref == -1) return false;
+
     float x1, y1;
-    anchors[0].GetPosition(x1, y1);
-    float d1 = anchors[0].GetDistance();
+    anchors[ref].GetPosition(x1, y1);
+    float d1 = anchors[ref].GetDistance();
 
     // Compute ATA = AᵀA and ATb = Aᵀb
     float ATA00 = 0.0f, ATA01 = 0.0f;
