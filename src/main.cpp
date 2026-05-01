@@ -35,7 +35,7 @@ HardwareSerial RYUW(2);
 #define SERVO_PINR 19
 
 // Pin 19 = R, pin 18 = L. R sweeps from rest down to 0 and back; L mirrored (180−r) so both wheels move together.
-static constexpr int SERVO_WIGGLE_REST_R = 65;
+static constexpr int SERVO_WIGGLE_REST_R = 90;
 static constexpr int SERVO_WIGGLE_REST_L = 180 - SERVO_WIGGLE_REST_R;
 static constexpr int SERVO_LIFT_MIN_DEG  = 0;
 
