@@ -42,7 +42,7 @@ static constexpr int SERVO_LIFT_MIN_DEG  = 0;
 #define WIN1 26
 #define WIN2 23
 #define WIN3 5
-#define WIN4 15
+#define WIN4 22
 
 #define IMU_INTERRUPT 23
 
@@ -56,7 +56,7 @@ static constexpr float ARRIVAL_THRESHOLD_CM      = 30.0f;
 
 // Timed straight segment after alignment (and bench test forward run).
 static constexpr uint32_t DRIVE_FORWARD_MS       = 500;  // 1 seconds
-static constexpr int    DRIVE_FORWARD_DUTY       = 200;
+static constexpr int    DRIVE_FORWARD_DUTY       = 225;
 static constexpr uint32_t MOTOR_STOP_TO_WIGGLE_MS = 280;  // pause after drive before servos move
 
 static constexpr int    TURN_PWM                 = 150;
@@ -240,6 +240,57 @@ void moveServoDown(){
   servoUp = false;
 }
 
+bool driveStepUsingTag1() {
+  // --- Read distance from TAG1 ---
+  anchors[0].PollDistance(RYUW);
+  float dist = anchors[0].GetDistance();  // cm
+
+  const float targetDist = 30.0f;  // stop this far from TAG1
+  float error = dist;
+
+  Serial.print("TAG1 dist: ");
+  Serial.print(dist);
+  Serial.print(" error: ");
+  Serial.println(error);
+
+  // --- STOP condition (keep this!) ---
+  if (fabs(error) < 60.0f) {
+    robot.motorsStop();
+    Serial.println("Reached target distance. Holding.");
+    return true;
+  }
+
+  // --- P control → convert distance to drive time ---
+  const float Kp_time = 200.0f;  // ms per cm (tune this!)
+  uint32_t driveTime = (uint32_t)(Kp_time * fabs(error));
+
+  // Clamp step size
+  driveTime = constrain(driveTime, 100, 1000);
+
+  // Optional: slow down near target
+  int pwm = DRIVE_FORWARD_DUTY;
+  // if (fabs(error) < 2.0f * ARRIVAL_THRESHOLD_CM) {
+  //   pwm *= 0.6f;
+  // }
+
+  Serial.print("Drive step time: ");
+  Serial.println(driveTime);
+
+  // --- Execute ONE step ---
+  if (error > 0) {
+    robot.motorsForward(pwm);
+  } else {
+    robot.motorsBackward(pwm);
+  }
+
+  delay(driveTime);
+
+  robot.motorsStop();
+
+  // small settle time
+  delay(200);
+  return false;
+}
 
 // ----------------------------- setup -----------------------------------------
 void setup() {
@@ -286,6 +337,9 @@ void setup() {
   Serial.print(gx);
   Serial.print(", ");
   Serial.println(gy);
+
+  moveServoUp();
+  robot.unspool();
 }
 
 // ----------------------------- loop ------------------------------------------
@@ -304,7 +358,6 @@ void loop() {
   }
   if(!arrive){
 
-    moveServoUp();
     float gx = 0.0f;
     float gy = 0.0f;
     robot.getGoal(gx, gy);
@@ -348,7 +401,8 @@ void loop() {
       Serial.println("Heading initialized from first fix (robot assumed aimed toward goal).");
     }
 
-    robot.spinWinch();
+    robot.windWinch();
+    robot.releaseWinch();
 
     moveServoDown();
 
@@ -360,13 +414,17 @@ void loop() {
     Serial.println("Bearing to goal: ");
     Serial.println(robot.bearingToGoal());
 
-    driveStepTowardGoal();
+    arrive = driveStepUsingTag1();
 
     delay(1000);
 
+    moveServoUp();
     // Serial.print("CSV ");
     // Serial.print(x);
     // Serial.print(",");
     // Serial.println(y);
+  }
+  else{
+    robot.windWinch();
   }
 }

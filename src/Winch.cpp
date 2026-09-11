@@ -12,37 +12,32 @@ Winch::Winch(int IN1, int IN2, int IN3, int IN4){
 }
 
 void Winch::OneStep(bool dir){
-    int steps[4][4] = {
-        {1,0,1,0},
-        {0,1,1,0},
-        {0,1,0,1},
-        {1,0,0,1}
-    };
 
     for(int i = 0; i < 4; i++){
-        digitalWrite(StepperPins[i], steps[step_number][i]);
+        digitalWrite(StepperPins[i], STEP_TABLE[step_number][i]);
     }
+    delayMicroseconds(1500);
 
     if(dir){
-        step_number = (step_number + 1) % 4;
+        step_number = (step_number + 1) % 8;
     }
     else{
-        step_number = (step_number + 3) % 4;
+        step_number = (step_number + 7) % 8;
     }
 }
 
 void Winch::turnDegrees(int angle){
-    int steps = abs(angle) / stepAngle;
+    int steps = abs(angle) / (2 * stepAngle);
     if(angle > 0){
         for(int i = 0; i < steps; i++){
             OneStep(true);
-            delay(2);
+            // delay(2);
         }
     }
     else if(angle < 0){
         for(int i = 0; i < steps; i++){
             OneStep(false);
-            delay(2);
+            // delay(2);
         }
     }
 }

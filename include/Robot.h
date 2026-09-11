@@ -50,6 +50,7 @@ public:
 
   void motorsStop();
   void motorsForward(int duty);
+  void motorsBackward(int duty);
   void motorsLeftTurn(int duty);
   void motorsRightTurn(int duty);
 
@@ -72,7 +73,12 @@ public:
   void initializeIMU();
 
   // winch spin
-  void spinWinch();
+  void windWinch();
+
+  void releaseWinch();
+
+  // unspool the winch
+  void unspool();
 };
 
 #endif

@@ -6,9 +6,10 @@ void Motors::forward(int spd) {
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
-  int duty = constrain(spd, 0, 255);
-  ledcWrite(PWM_CH_A, duty);
-  ledcWrite(PWM_CH_B, duty);
+  int dutyL = constrain(spd-30, 0, 255);
+  int dutyR = constrain(spd+30, 0, 255);
+  ledcWrite(PWM_CH_A, dutyL);
+  ledcWrite(PWM_CH_B, dutyR);
 }
 
 void Motors::backward(int spd) {

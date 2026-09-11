@@ -5,6 +5,18 @@
 // 2048 step per rotation
 const float stepAngle = 360.0 / 2048;
 
+
+static const int STEP_TABLE[8][4] = {
+    {1,0,0,0},
+    {1,1,0,0},
+    {0,1,0,0},
+    {0,1,1,0},
+    {0,0,1,0},
+    {0,0,1,1},
+    {0,0,0,1},
+    {1,0,0,1}
+};
+
 class Winch{
     private:
         int StepperPins[4];

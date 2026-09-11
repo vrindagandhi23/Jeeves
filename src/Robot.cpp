@@ -70,6 +70,10 @@ void Robot::motorsForward(int duty) {
   motors.forward(duty);
 }
 
+void Robot::motorsBackward(int duty) {
+  motors.backward(duty);
+}
+
 void Robot::motorsLeftTurn(int duty) {
   motors.leftTurn(duty);
 }
@@ -82,12 +86,16 @@ void Robot::initializeIMU(){
   imu.begin();
 }
 
-void Robot::spinWinch(){
-  for(int i = 0; i < 360; i++){
-    // Serial.println("spinning");
-    winch.OneStep(false);
-    delay(10);
-  }
+void Robot::windWinch(){
+  winch.turnDegrees(-1080);
+}
+
+void Robot::releaseWinch(){
+  winch.turnDegrees(1440);
+}
+
+void Robot::unspool(){
+  winch.turnDegrees(18000);
 }
 
 // ---------------------- Control Loop -------------------------------
