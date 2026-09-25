@@ -1,4 +1,4 @@
-# Jeeves
+# Jeeves (USC Makers Project)
 
 An autonomous bed-making robot built on ESP32: it estimates its position using **UWB (ultra-wideband) triangulation**, tracks heading with an **onboard IMU**, drives toward a target with a closed-loop pursuit controller, and uses a **winch mechanism** to pull and tuck bedding.
 
