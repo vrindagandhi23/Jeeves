@@ -1,20 +1,27 @@
 # Jeeves
 
-An autonomous bed-making robot built on ESP32: it locates itself using **UWB (ultra-wideband) triangulation**, tracks heading with an **onboard IMU**, drives toward a target with proportional control, and uses a **winch mechanism** to pull and tuck bedding.
+An autonomous bed-making robot built on ESP32: it estimates its position using **UWB (ultra-wideband) triangulation**, tracks heading with an **onboard IMU**, drives toward a target with a closed-loop pursuit controller, and uses a **winch mechanism** to pull and tuck bedding.
 
 ## How it works
 
-Four UWB anchors are placed at known positions (e.g. the corners of a bed). The robot polls distance readings from each anchor over UART and solves a least-squares triangulation to estimate its `(x, y)` position. An MPU6050 IMU provides heading, which the robot combines with its position estimate and the bearing to a goal tag to plan movement.
+Four UWB anchors are placed at known positions (e.g. the corners of a bed). The robot polls distance readings from each anchor over UART and solves a least-squares triangulation (`triangulate()`) to estimate its `(x, y)` position.
 
-Control runs as a single-threaded state machine in `loop()`:
+Navigation is driven by `Robot::pursueTarget()`, a state machine with four phases:
 
-1. Estimate position (triangulation) and compute distance/bearing to the goal.
-2. If not yet arrived, turn to face the goal using proportional heading control.
-3. Drive forward in proportional-length steps (duration scales with remaining distance).
-4. Actuate the winch and wheel-lift servos to perform the bed-making motion.
-5. Repeat until within the arrival threshold, then hold and continue winching.
+1. **CALIBRATING** — drives forward briefly and measures actual displacement from the triangulated position to derive an initial heading (since position fixes alone don't give orientation).
+2. **TURNING** — rotates in place, comparing current heading to the bearing toward the goal (`bearingToGoal()`), until the heading error is within tolerance.
+3. **PURSUING** — drives straight toward the goal, continuously re-checking distance, until within the arrival threshold.
+4. **DONE** — stops and holds position.
 
-An earlier version of this project used a FreeRTOS split (a UWB/triangulation task feeding a motor-control task over a queue); the current firmware consolidates this into the single-threaded loop above for simpler tuning of the drive/turn control loops.
+The `Robot` class wraps three subsystems behind this controller:
+
+- **`Motors`** — TB6612FNG dual motor driver (`forward`/`backward`/`leftTurn`/`rightTurn`/`stopMotors`) over PWM (LEDC).
+- **`Winch`** — 4-wire stepper driver for the bed-sheet mechanism, exposed as `windWinch()` / `releaseWinch()` / `unspool()`.
+- **`MPU6050Sensor`** — DMP-based IMU giving yaw/pitch/roll for heading tracking.
+
+Distance readings are cleaned up before they ever reach triangulation: `Anchor` runs each raw UWB reading through a `DistanceFilter` (spike rejection → median-of-3 → EMA) before triangulation ever sees it.
+
+> The firmware in `main.cpp` is currently mid-tuning and drives navigation with a simpler, more direct single-anchor stepping loop rather than calling `pursueTarget()` end-to-end — but the `Robot`/`Motors`/`Winch`/`MPU6050Sensor` classes above are the core, reusable control layer the project is built on.
 
 ## Hardware
 
@@ -46,6 +53,6 @@ To visualize position output live, run `TriangulationVisualizer.py` while the ro
 
 ## Status / roadmap
 
+- [ ] Wire `main.cpp`'s navigation loop back to `Robot::pursueTarget()` now that IMU heading and single-anchor stepping have been validated on the bench
+- [ ] Replace raw triangulation fixes with a Kalman filter to reduce position noise
 - [ ] Tune proportional drive/turn gains for reliable navigation
-- [ ] Replace raw triangulation fixes with a Kalman filter to reduce noise
-- [ ] Re-enable multi-anchor triangulation for full-course navigation (current build steps off a single tag's distance for the final approach)
