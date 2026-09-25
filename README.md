@@ -2,6 +2,8 @@
 
 An autonomous bed-making robot built on ESP32: it estimates its position using **UWB (ultra-wideband) triangulation**, tracks heading with an **onboard IMU**, drives toward a target with a closed-loop pursuit controller, and uses a **winch mechanism** to pull and tuck bedding.
 
+![System Block Diagram](Jeeves_Block_Diagram.png)
+
 ## How it works
 
 Four UWB anchors are placed at known positions (e.g. the corners of a bed). The robot polls distance readings from each anchor over UART and solves a least-squares triangulation (`triangulate()`) to estimate its `(x, y)` position.
@@ -50,9 +52,3 @@ pio device monitor    # serial output (115200 baud)
 ```
 
 To visualize position output live, run `TriangulationVisualizer.py` while the robot streams `x,y` over serial.
-
-## Status / roadmap
-
-- [ ] Wire `main.cpp`'s navigation loop back to `Robot::pursueTarget()` now that IMU heading and single-anchor stepping have been validated on the bench
-- [ ] Replace raw triangulation fixes with a Kalman filter to reduce position noise
-- [ ] Tune proportional drive/turn gains for reliable navigation
